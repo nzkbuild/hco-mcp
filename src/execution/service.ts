@@ -113,7 +113,12 @@ export class ExecutionService {
     if (!exec) {
       throw new ExecutionLifecycleError(`Execution "${executionId}" not found`);
     }
-    if (exec.status !== 'queued' && exec.status !== 'running' && exec.status !== 'awaiting_input') {
+    if (
+      exec.status !== 'accepted' &&
+      exec.status !== 'queued' &&
+      exec.status !== 'running' &&
+      exec.status !== 'awaiting_input'
+    ) {
       throw new ExecutionLifecycleError(
         `Cannot cancel execution "${executionId}" in status "${exec.status}"`,
       );
