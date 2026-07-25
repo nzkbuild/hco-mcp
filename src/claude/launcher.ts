@@ -59,7 +59,7 @@ export interface LaunchOptions {
 
 // ─── Environment filtering ─────────────────────────────────────────────────────
 
-function filterEnv(allowedKeys: readonly string[]): Record<string, string> {
+export function filterEnv(allowedKeys: readonly string[]): Record<string, string> {
   const filtered: Record<string, string> = {};
   for (const key of allowedKeys) {
     const val = process.env[key];
