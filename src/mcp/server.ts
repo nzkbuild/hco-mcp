@@ -66,6 +66,13 @@ const JOB_STATUS_SCHEMA = z.enum([
 const JOB_LIMIT_SCHEMA = z.number().int().positive().max(200);
 const EXTERNAL_ID_SCHEMA = z.string().min(1).max(256);
 
+// ─── Execution schemas ─────────────────────────────────────────────────────
+
+const EXECUTION_ID_SCHEMA = z.string().min(1).max(256);
+const CONTINUE_PROMPT_SCHEMA = z.string().min(1).max(65536);
+const EXECUTION_REASON_SCHEMA = z.string().min(1).max(1024).optional();
+const EXECUTION_TIMEOUT_MS_SCHEMA = z.number().int().min(1).max(3600000).optional();
+
 // ─── Status handler ──────────────────────────────────────────────────────────
 
 export function handleStatus(): McpSuccessResponse {
@@ -368,6 +375,101 @@ export function handleExecutionSubmit(args: {
   }
 }
 
+// ─── Execution start handler ──────────────────────────────────────────────────
+
+export function handleExecutionStart(args: {
+  execution_id: string;
+}): McpErrorResponse | McpSuccessResponse {
+  try {
+    const result = state.executionService.start(args.execution_id);
+    return success(result);
+  } catch (err: unknown) {
+    if (err instanceof Error && err.name === 'ExecutionLifecycleError') {
+      return error(ErrorCode.INVALID_LIFECYCLE, err.message);
+    }
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    return sanitizedError(ErrorCode.SPAWN_FAILED, `Execution start failed: ${msg}`);
+  }
+}
+
+// ─── Execution status handler ─────────────────────────────────────────────────
+
+export function handleExecutionStatus(args: {
+  execution_id: string;
+}): McpErrorResponse | McpSuccessResponse {
+  const exec = state.executionService.getStatus(args.execution_id);
+  if (!exec) {
+    return error(ErrorCode.VALIDATION_ERROR, `Execution "${args.execution_id}" not found`);
+  }
+  return success(exec);
+}
+
+// ─── Execution wait handler ───────────────────────────────────────────────────
+
+export async function handleExecutionWait(args: {
+  execution_id: string;
+  timeout_ms?: number | undefined;
+}): Promise<McpErrorResponse | McpSuccessResponse> {
+  const result = await state.executionService.wait(args.execution_id, args.timeout_ms);
+  if (!result) {
+    return error(ErrorCode.VALIDATION_ERROR, `Execution "${args.execution_id}" not found`);
+  }
+  return success(result);
+}
+
+// ─── Execution cancel handler ─────────────────────────────────────────────────
+
+export function handleExecutionCancel(args: {
+  execution_id: string;
+  reason?: string | undefined;
+}): McpErrorResponse | McpSuccessResponse {
+  try {
+    const result = state.executionService.cancel(args.execution_id, args.reason);
+    return success(result);
+  } catch (err: unknown) {
+    if (err instanceof Error && err.name === 'ExecutionLifecycleError') {
+      return error(ErrorCode.INVALID_LIFECYCLE, err.message);
+    }
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    return sanitizedError(ErrorCode.SPAWN_FAILED, `Execution cancel failed: ${msg}`);
+  }
+}
+
+// ─── Execution result handler ─────────────────────────────────────────────────
+
+export function handleExecutionResult(args: {
+  execution_id: string;
+}): McpErrorResponse | McpSuccessResponse {
+  try {
+    const result = state.executionService.getResult(args.execution_id);
+    return success(result);
+  } catch (err: unknown) {
+    if (err instanceof Error && err.name === 'ExecutionLifecycleError') {
+      return error(ErrorCode.INVALID_LIFECYCLE, err.message);
+    }
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    return sanitizedError(ErrorCode.SPAWN_FAILED, `Execution result failed: ${msg}`);
+  }
+}
+
+// ─── Execution continue handler ───────────────────────────────────────────────
+
+export function handleExecutionContinue(args: {
+  execution_id: string;
+  prompt: string;
+}): McpErrorResponse | McpSuccessResponse {
+  try {
+    const result = state.executionService.continue(args.execution_id, args.prompt);
+    return success(result);
+  } catch (err: unknown) {
+    if (err instanceof Error && err.name === 'ExecutionLifecycleError') {
+      return error(ErrorCode.INVALID_LIFECYCLE, err.message);
+    }
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    return sanitizedError(ErrorCode.SPAWN_FAILED, `Execution continue failed: ${msg}`);
+  }
+}
+
 // ─── Server factory ──────────────────────────────────────────────────────────
 
 function createServerState(opts: HcoConfig | AppContext | McpOptionsWithLauncher): void {
@@ -588,6 +690,89 @@ function registerAllTools(server: McpServer): void {
     },
     (args) => ({
       content: [{ type: 'text', text: JSON.stringify(handleExecutionSubmit(args)) }],
+    }),
+  );
+
+  // Phase 3 execution lifecycle tools
+
+  server.registerTool(
+    'hco_execution_start',
+    {
+      description: 'Start a previously submitted execution. Transitions accepted to running.',
+      inputSchema: {
+        execution_id: EXECUTION_ID_SCHEMA.describe('The execution ID to start'),
+      },
+    },
+    (args) => ({
+      content: [{ type: 'text', text: JSON.stringify(handleExecutionStart(args)) }],
+    }),
+  );
+
+  server.registerTool(
+    'hco_execution_status',
+    {
+      description: 'Get current status and metadata for an execution.',
+      inputSchema: {
+        execution_id: EXECUTION_ID_SCHEMA.describe('The execution ID to query'),
+      },
+    },
+    (args) => ({
+      content: [{ type: 'text', text: JSON.stringify(handleExecutionStatus(args)) }],
+    }),
+  );
+
+  server.registerTool(
+    'hco_execution_wait',
+    {
+      description: 'Wait for an execution to reach a terminal state.',
+      inputSchema: {
+        execution_id: EXECUTION_ID_SCHEMA.describe('The execution ID to wait for'),
+        timeout_ms: EXECUTION_TIMEOUT_MS_SCHEMA.describe('Optional timeout (1-3600000 ms)'),
+      },
+    },
+    async (args) => ({
+      content: [{ type: 'text', text: JSON.stringify(await handleExecutionWait(args)) }],
+    }),
+  );
+
+  server.registerTool(
+    'hco_execution_cancel',
+    {
+      description: 'Cancel a running, queued, or awaiting_input execution.',
+      inputSchema: {
+        execution_id: EXECUTION_ID_SCHEMA.describe('The execution ID to cancel'),
+        reason: EXECUTION_REASON_SCHEMA.describe('Optional reason (1-1024 chars)'),
+      },
+    },
+    (args) => ({
+      content: [{ type: 'text', text: JSON.stringify(handleExecutionCancel(args)) }],
+    }),
+  );
+
+  server.registerTool(
+    'hco_execution_result',
+    {
+      description: 'Get the structured ExecutionResult for a terminal execution.',
+      inputSchema: {
+        execution_id: EXECUTION_ID_SCHEMA.describe('The execution ID to get results for'),
+      },
+    },
+    (args) => ({
+      content: [{ type: 'text', text: JSON.stringify(handleExecutionResult(args)) }],
+    }),
+  );
+
+  server.registerTool(
+    'hco_execution_continue',
+    {
+      description: 'Resume an execution paused at awaiting_input with a continuation prompt.',
+      inputSchema: {
+        execution_id: EXECUTION_ID_SCHEMA.describe('The execution ID to continue'),
+        prompt: CONTINUE_PROMPT_SCHEMA.describe('Continuation prompt (1-65536 chars)'),
+      },
+    },
+    (args) => ({
+      content: [{ type: 'text', text: JSON.stringify(handleExecutionContinue(args)) }],
     }),
   );
 }
