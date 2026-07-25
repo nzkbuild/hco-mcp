@@ -54,6 +54,35 @@ function dbNow(): string {
   return new Date().toISOString().replace('T', ' ').slice(0, 19);
 }
 
+function requestJsonEquals(a: string, b: string): boolean {
+  if (a === b) return true;
+  try {
+    const parsedA = JSON.parse(a) as Record<string, unknown>;
+    const parsedB = JSON.parse(b) as Record<string, unknown>;
+    delete parsedA.request_id;
+    delete parsedB.request_id;
+    delete parsedA.submitted_at;
+    delete parsedB.submitted_at;
+    return deepSortedJson(parsedA) === deepSortedJson(parsedB);
+  } catch {
+    return a === b;
+  }
+}
+
+function deepSortedJson(obj: unknown): string {
+  if (obj === null || typeof obj !== 'object') {
+    return JSON.stringify(obj);
+  }
+  if (Array.isArray(obj)) {
+    return `[${obj.map(deepSortedJson).join(',')}]`;
+  }
+  const keys = Object.keys(obj).sort();
+  const pairs = keys.map(
+    (k) => `${JSON.stringify(k)}:${deepSortedJson((obj as Record<string, unknown>)[k])}`,
+  );
+  return `{${pairs.join(',')}}`;
+}
+
 // ─── CRUD ───────────────────────────────────────────────────────────────────────
 
 export function createExecution(
@@ -71,7 +100,7 @@ export function createExecution(
 
   const existing = getExecutionByIdempotencyKey(db, idempotencyKey);
   if (existing) {
-    if (existing.requestJson === requestJson) {
+    if (requestJsonEquals(existing.requestJson, requestJson)) {
       return existing;
     }
     throw new ConflictingExecutionError(idempotencyKey, existing.executionId);

@@ -27,6 +27,10 @@ import {
   type McpSuccessResponse,
   ErrorCode,
 } from './errors.js';
+import { ExecutionService } from '../execution/service.js';
+import { ExecutionRequestV1 } from '../contract/execution-request.js';
+import { ExecutionProfileV1 } from '../contract/execution-profile.js';
+import { PolicySnapshotV1 } from '../contract/policy-snapshot.js';
 
 // ─── Re-export for tests ─────────────────────────────────────────────────────
 
@@ -39,6 +43,7 @@ export { error, success, sanitizedError };
 interface ServerState {
   db: Database.Database;
   launcher: ClaudeLauncher | undefined;
+  executionService: ExecutionService;
 }
 
 let state: ServerState;
@@ -293,30 +298,109 @@ function isTerminal(status: string): boolean {
   );
 }
 
+// ─── Execution submit handler ─────────────────────────────────────────────────
+
+const EXECUTION_REQUEST_JSON_SCHEMA = z.string().min(1).max(200_000);
+
+const EXECUTION_PROFILE_JSON_SCHEMA = z.string().min(1).max(100_000);
+
+const EXECUTION_POLICY_JSON_SCHEMA = z.string().min(1).max(100_000);
+
+export function handleExecutionSubmit(args: {
+  request_json: string;
+  profile_json: string;
+  policy_json: string;
+}): McpErrorResponse | McpSuccessResponse {
+  let requestParsed: unknown;
+  let profileParsed: unknown;
+  let policyParsed: unknown;
+
+  try {
+    requestParsed = JSON.parse(args.request_json) as unknown;
+  } catch {
+    return error(ErrorCode.VALIDATION_ERROR, 'request_json is not valid JSON');
+  }
+  try {
+    profileParsed = JSON.parse(args.profile_json) as unknown;
+  } catch {
+    return error(ErrorCode.VALIDATION_ERROR, 'profile_json is not valid JSON');
+  }
+  try {
+    policyParsed = JSON.parse(args.policy_json) as unknown;
+  } catch {
+    return error(ErrorCode.VALIDATION_ERROR, 'policy_json is not valid JSON');
+  }
+
+  const request = ExecutionRequestV1.safeParse(requestParsed);
+  if (!request.success) {
+    return error(
+      ErrorCode.VALIDATION_ERROR,
+      `Invalid ExecutionRequest: ${request.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`,
+    );
+  }
+
+  const profile = ExecutionProfileV1.safeParse(profileParsed);
+  if (!profile.success) {
+    return error(
+      ErrorCode.VALIDATION_ERROR,
+      `Invalid ExecutionProfile: ${profile.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`,
+    );
+  }
+
+  const policy = PolicySnapshotV1.safeParse(policyParsed);
+  if (!policy.success) {
+    return error(
+      ErrorCode.VALIDATION_ERROR,
+      `Invalid PolicySnapshot: ${policy.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`,
+    );
+  }
+
+  try {
+    const result = state.executionService.submit(request.data, profile.data, policy.data);
+    return success(result);
+  } catch (err: unknown) {
+    if (err instanceof Error && err.name === 'ConflictingExecutionError') {
+      return error(ErrorCode.VALIDATION_ERROR, err.message);
+    }
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    return sanitizedError(ErrorCode.SPAWN_FAILED, `Execution submission failed: ${msg}`);
+  }
+}
+
 // ─── Server factory ──────────────────────────────────────────────────────────
 
 function createServerState(opts: HcoConfig | AppContext | McpOptionsWithLauncher): void {
+  let db: Database.Database;
+  let launcher: ClaudeLauncher | undefined;
+
   if ('db' in opts && 'config' in opts) {
-    state = { db: opts.db, launcher: undefined };
+    db = opts.db;
+    launcher = undefined;
   } else if ('ctx' in opts) {
-    state = { db: opts.ctx.db, launcher: opts.launcher };
+    db = opts.ctx.db;
+    launcher = opts.launcher;
   } else if ('launcher' in opts) {
     if (opts.config) {
-      state = { db: openDb(opts.config.dataDir), launcher: opts.launcher };
+      db = openDb(opts.config.dataDir);
     } else {
       const cfg = loadConfig();
-      state = { db: openDb(cfg.dataDir), launcher: opts.launcher };
+      db = openDb(cfg.dataDir);
     }
+    launcher = opts.launcher;
   } else if ('dataDir' in opts) {
-    state = { db: openDb(opts.dataDir), launcher: undefined };
+    db = openDb(opts.dataDir);
+    launcher = undefined;
   } else {
     if (opts.config) {
-      state = { db: openDb(opts.config.dataDir), launcher: undefined };
+      db = openDb(opts.config.dataDir);
     } else {
       const cfg = loadConfig();
-      state = { db: openDb(cfg.dataDir), launcher: undefined };
+      db = openDb(cfg.dataDir);
     }
+    launcher = undefined;
   }
+
+  state = { db, launcher, executionService: new ExecutionService(db) };
 }
 
 function registerAllTools(server: McpServer): void {
@@ -479,6 +563,30 @@ function registerAllTools(server: McpServer): void {
     },
     (args) => ({
       content: [{ type: 'text', text: JSON.stringify(handleSessionStart(args)) }],
+    }),
+  );
+
+  // ─── Execution tools: 2.0-A3 ───────────────────────────────────────────
+
+  server.registerTool(
+    'hco_execution_submit',
+    {
+      description:
+        'Submit a new execution request. Persists the execution durably and returns the execution ID. Does NOT launch Claude Code.',
+      inputSchema: {
+        request_json: EXECUTION_REQUEST_JSON_SCHEMA.describe(
+          'JSON string of the ExecutionRequest v1 contract',
+        ),
+        profile_json: EXECUTION_PROFILE_JSON_SCHEMA.describe(
+          'JSON string of the ExecutionProfile v1 contract',
+        ),
+        policy_json: EXECUTION_POLICY_JSON_SCHEMA.describe(
+          'JSON string of the PolicySnapshot v1 contract',
+        ),
+      },
+    },
+    (args) => ({
+      content: [{ type: 'text', text: JSON.stringify(handleExecutionSubmit(args)) }],
     }),
   );
 }
