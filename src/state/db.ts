@@ -281,6 +281,53 @@ const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 7,
+    name: 'executions-immutable',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS executions (
+          id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+          execution_id          TEXT NOT NULL UNIQUE,
+          idempotency_key       TEXT NOT NULL UNIQUE,
+          schema_version        INTEGER NOT NULL DEFAULT 1,
+          status                TEXT NOT NULL DEFAULT 'accepted'
+            CHECK (status IN ('accepted', 'queued', 'running', 'awaiting_input', 'completed', 'failed', 'cancelled', 'timed_out', 'archived')),
+          request_json          TEXT NOT NULL,
+          profile_snapshot_json TEXT NOT NULL,
+          policy_snapshot_json  TEXT NOT NULL,
+          created_at            TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at            TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_executions_status ON executions(status);
+        CREATE INDEX IF NOT EXISTS idx_executions_idempotency ON executions(idempotency_key);
+
+        CREATE TABLE IF NOT EXISTS execution_events (
+          id           INTEGER PRIMARY KEY AUTOINCREMENT,
+          execution_id TEXT NOT NULL REFERENCES executions(execution_id),
+          type         TEXT NOT NULL,
+          payload      TEXT NOT NULL DEFAULT '{}',
+          recorded_at  TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_execution_events_execution ON execution_events(execution_id, id);
+        CREATE INDEX IF NOT EXISTS idx_execution_events_type ON execution_events(type);
+
+        CREATE TRIGGER IF NOT EXISTS trg_execution_events_no_update
+        BEFORE UPDATE ON execution_events
+        BEGIN
+          SELECT RAISE(FAIL, 'execution_events table is append-only: UPDATE rejected');
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS trg_execution_events_no_delete
+        BEFORE DELETE ON execution_events
+        BEGIN
+          SELECT RAISE(FAIL, 'execution_events table is append-only: DELETE rejected');
+        END;
+      `);
+    },
+  },
 ];
 
 // ─── Migrate entrypoint ────────────────────────────────────────────────────────
