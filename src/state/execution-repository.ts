@@ -164,3 +164,152 @@ export function listExecutions(
   }
   return rows.map(rowToExecution);
 }
+
+// ─── State machine ─────────────────────────────────────────────────────────────
+//
+//   accepted → queued → running → completed
+//                           ├→ failed
+//                           ├→ cancelled
+//                           ├→ timed_out
+//                           └→ awaiting_input → running (continue)
+//   queued → cancelled
+//   any terminal (completed, failed, cancelled, timed_out) → archived
+//   archived → (none)
+
+const VALID_TRANSITIONS: Record<string, readonly string[]> = {
+  accepted: ['queued', 'cancelled'],
+  queued: ['running', 'cancelled'],
+  running: ['completed', 'failed', 'cancelled', 'timed_out', 'awaiting_input'],
+  awaiting_input: ['running', 'cancelled'],
+  completed: ['archived'],
+  failed: ['archived'],
+  cancelled: ['archived'],
+  timed_out: ['archived'],
+  archived: [],
+};
+
+export function isValidTransition(from: string, to: string): boolean {
+  return VALID_TRANSITIONS[from]?.includes(to) ?? false;
+}
+
+const TERMINAL_STATUSES = new Set(['completed', 'failed', 'cancelled', 'timed_out']);
+
+export function isTerminal(status: string): boolean {
+  return TERMINAL_STATUSES.has(status);
+}
+
+function appendEvent(
+  db: Database.Database,
+  executionId: string,
+  type: string,
+  payload?: Record<string, unknown>,
+): void {
+  db.prepare('INSERT INTO execution_events (execution_id, type, payload) VALUES (?, ?, ?)').run(
+    executionId,
+    type,
+    JSON.stringify(payload ?? {}),
+  );
+}
+
+function transition(
+  db: Database.Database,
+  executionId: string,
+  to: string,
+  eventType: string,
+  eventPayload?: Record<string, unknown>,
+): ExecutionRow | null {
+  const current = getExecution(db, executionId);
+  if (!current) return null;
+  if (!isValidTransition(current.status, to)) return null;
+
+  const now = dbNow();
+  db.prepare('UPDATE executions SET status = ?, updated_at = ? WHERE execution_id = ?').run(
+    to,
+    now,
+    executionId,
+  );
+
+  appendEvent(db, executionId, eventType, {
+    from: current.status,
+    to,
+    ...eventPayload,
+  });
+
+  return getExecution(db, executionId);
+}
+
+export function transitionToQueued(
+  db: Database.Database,
+  executionId: string,
+): ExecutionRow | null {
+  return transition(db, executionId, 'queued', 'queued');
+}
+
+export function transitionToRunning(
+  db: Database.Database,
+  executionId: string,
+): ExecutionRow | null {
+  return transition(db, executionId, 'running', 'started');
+}
+
+export function transitionToCompleted(
+  db: Database.Database,
+  executionId: string,
+  exitCode?: number,
+): ExecutionRow | null {
+  const now = dbNow();
+  const current = getExecution(db, executionId);
+  if (!current) return null;
+  if (!isValidTransition(current.status, 'completed')) return null;
+
+  db.prepare('UPDATE executions SET status = ?, updated_at = ? WHERE execution_id = ?').run(
+    'completed',
+    now,
+    executionId,
+  );
+
+  appendEvent(db, executionId, 'completed', {
+    exit_code: exitCode,
+    from: current.status,
+    to: 'completed',
+  });
+
+  return getExecution(db, executionId);
+}
+
+export function transitionToFailed(
+  db: Database.Database,
+  executionId: string,
+  error?: string,
+): ExecutionRow | null {
+  return transition(db, executionId, 'failed', 'failed', error ? { error } : undefined);
+}
+
+export function transitionToCancelled(
+  db: Database.Database,
+  executionId: string,
+  reason?: string,
+): ExecutionRow | null {
+  return transition(db, executionId, 'cancelled', 'cancelled', reason ? { reason } : undefined);
+}
+
+export function transitionToTimedOut(
+  db: Database.Database,
+  executionId: string,
+): ExecutionRow | null {
+  return transition(db, executionId, 'timed_out', 'timed_out');
+}
+
+export function transitionToAwaitingInput(
+  db: Database.Database,
+  executionId: string,
+): ExecutionRow | null {
+  return transition(db, executionId, 'awaiting_input', 'awaiting_input');
+}
+
+export function transitionToArchived(
+  db: Database.Database,
+  executionId: string,
+): ExecutionRow | null {
+  return transition(db, executionId, 'archived', 'archived');
+}
