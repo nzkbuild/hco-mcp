@@ -4,6 +4,7 @@ import { rmSync } from 'node:fs';
 import Database from 'better-sqlite3';
 import { openDb } from '../src/state/db.js';
 import { ExecutionService } from '../src/execution/service.js';
+import { FakeClaudeCodeAdapter } from '../src/claude/adapter.js';
 import { ExecutionRequestV1 } from '../src/contract/execution-request.js';
 import { ExecutionProfileV1 } from '../src/contract/execution-profile.js';
 import { PolicySnapshotV1 } from '../src/contract/policy-snapshot.js';
@@ -72,7 +73,7 @@ describe('ExecutionService.submit', () => {
 
   before(() => {
     db = freshDb();
-    service = new ExecutionService(db);
+    service = new ExecutionService(db, new FakeClaudeCodeAdapter());
   });
 
   after(() => {

@@ -2,10 +2,23 @@ import type Database from 'better-sqlite3';
 import type { ExecutionRequestV1 } from '../contract/execution-request.js';
 import type { ExecutionProfileV1 } from '../contract/execution-profile.js';
 import type { PolicySnapshotV1 } from '../contract/policy-snapshot.js';
-import { createExecution } from '../state/execution-repository.js';
+import { ExecutionResultV1 } from '../contract/execution-result.js';
+import {
+  createExecution,
+  getExecution,
+  transitionToQueued,
+  transitionToRunning,
+  transitionToCompleted,
+  transitionToFailed,
+  transitionToCancelled,
+  transitionToTimedOut,
+  isTerminal,
+} from '../state/execution-repository.js';
+import type { ExecutionRow } from '../state/execution-repository.js';
+import type { ClaudeCodeAdapter } from '../claude/adapter.js';
 import { logDebug } from '../mcp/logging.js';
 
-// ─── Submit result ──────────────────────────────────────────────────────────────
+// ─── Submit result ─────────────────────────────────────────────────────────
 
 export interface SubmitResult {
   execution_id: string;
@@ -13,10 +26,22 @@ export interface SubmitResult {
   accepted_at: string;
 }
 
-// ─── ExecutionService ───────────────────────────────────────────────────────────
+// ─── Error types ───────────────────────────────────────────────────────────
+
+export class ExecutionLifecycleError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ExecutionLifecycleError';
+  }
+}
+
+// ─── ExecutionService ──────────────────────────────────────────────────────
 
 export class ExecutionService {
-  constructor(private readonly db: Database.Database) {}
+  constructor(
+    private readonly db: Database.Database,
+    private readonly adapter: ClaudeCodeAdapter,
+  ) {}
 
   submit(
     request: ExecutionRequestV1,
@@ -32,5 +57,139 @@ export class ExecutionService {
       status: exec.status,
       accepted_at: exec.createdAt,
     };
+  }
+
+  start(executionId: string): ExecutionRow {
+    const exec = getExecution(this.db, executionId);
+    if (!exec) {
+      throw new ExecutionLifecycleError(`Execution "${executionId}" not found`);
+    }
+    if (exec.status !== 'accepted') {
+      throw new ExecutionLifecycleError(
+        `Cannot start execution "${executionId}" in status "${exec.status}" (expected "accepted")`,
+      );
+    }
+
+    transitionToQueued(this.db, executionId);
+    const running = transitionToRunning(this.db, executionId);
+    if (!running) {
+      throw new ExecutionLifecycleError(`Failed to transition "${executionId}" to running`);
+    }
+
+    const profile = JSON.parse(running.profileSnapshotJson) as ExecutionProfileV1;
+
+    const onExit = (attempt: ReturnType<ClaudeCodeAdapter['launch']>): void => {
+      logDebug(`ExecutionService.onExit: ${executionId} exitCode=${String(attempt.exitCode)}`);
+
+      if (attempt.aborted) {
+        // Cancellation already handled by cancel() — no double transition
+        return;
+      }
+      if (attempt.timedOut) {
+        transitionToTimedOut(this.db, executionId);
+      } else if (attempt.exitCode === 0) {
+        transitionToCompleted(this.db, executionId, attempt.exitCode);
+      } else {
+        transitionToFailed(
+          this.db,
+          executionId,
+          `Process exited with code ${String(attempt.exitCode)}`,
+        );
+      }
+    };
+
+    this.adapter.launch(running, profile, onExit);
+
+    return getExecution(this.db, executionId) ?? running;
+  }
+
+  cancel(executionId: string, reason?: string): ExecutionRow {
+    const exec = getExecution(this.db, executionId);
+    if (!exec) {
+      throw new ExecutionLifecycleError(`Execution "${executionId}" not found`);
+    }
+    if (exec.status !== 'queued' && exec.status !== 'running' && exec.status !== 'awaiting_input') {
+      throw new ExecutionLifecycleError(
+        `Cannot cancel execution "${executionId}" in status "${exec.status}"`,
+      );
+    }
+
+    if (exec.status === 'running' || exec.status === 'awaiting_input') {
+      this.adapter.abort(executionId);
+    }
+
+    const result = transitionToCancelled(this.db, executionId, reason ?? 'Cancelled');
+    if (!result) {
+      throw new ExecutionLifecycleError(`Failed to cancel execution "${executionId}"`);
+    }
+    return result;
+  }
+
+  getStatus(executionId: string): ExecutionRow | null {
+    return getExecution(this.db, executionId);
+  }
+
+  getResult(executionId: string): ReturnType<typeof ExecutionResultV1.parse> {
+    const exec = getExecution(this.db, executionId);
+    if (!exec) {
+      throw new ExecutionLifecycleError(`Execution "${executionId}" not found`);
+    }
+    if (!isTerminal(exec.status)) {
+      throw new ExecutionLifecycleError(
+        `Cannot get result for execution "${executionId}" in non-terminal status "${exec.status}"`,
+      );
+    }
+
+    const events = this.db
+      .prepare('SELECT * FROM execution_events WHERE execution_id = ? ORDER BY id')
+      .all(executionId) as Record<string, unknown>[];
+
+    const startedEvent = events.find((e) => e.type === 'started');
+    const finishedEvent = events.find((e) =>
+      ['completed', 'failed', 'cancelled', 'timed_out'].includes(e.type as string),
+    );
+
+    return ExecutionResultV1.parse({
+      execution_id: exec.executionId,
+      status: exec.status,
+      claude_session_id: exec.executionId,
+      summary: {
+        exit_code: 0,
+        duration_ms: 0,
+        artifacts: [],
+      },
+      submitted_at: exec.createdAt,
+      started_at: startedEvent?.recorded_at ?? null,
+      finished_at: finishedEvent?.recorded_at ?? exec.updatedAt,
+    });
+  }
+
+  async wait(executionId: string, timeoutMs?: number): Promise<ExecutionRow | null> {
+    const deadline = timeoutMs !== undefined ? Date.now() + timeoutMs : undefined;
+    const pollMs = 200;
+
+    for (;;) {
+      const s = getExecution(this.db, executionId);
+      if (!s) return null;
+
+      if (isTerminal(s.status)) {
+        return s;
+      }
+
+      if (deadline !== undefined && Date.now() >= deadline) {
+        return s;
+      }
+
+      const attached = this.adapter.attach(executionId);
+      if (attached) {
+        // Process is still alive — wait for it
+        await new Promise<void>((resolve) => {
+          setTimeout(resolve, pollMs);
+        });
+      } else {
+        // No live process — just poll DB
+        await new Promise((r) => setTimeout(r, pollMs));
+      }
+    }
   }
 }

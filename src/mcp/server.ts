@@ -31,6 +31,7 @@ import { ExecutionService } from '../execution/service.js';
 import { ExecutionRequestV1 } from '../contract/execution-request.js';
 import { ExecutionProfileV1 } from '../contract/execution-profile.js';
 import { PolicySnapshotV1 } from '../contract/policy-snapshot.js';
+import { FakeClaudeCodeAdapter } from '../claude/adapter.js';
 
 // ─── Re-export for tests ─────────────────────────────────────────────────────
 
@@ -400,7 +401,7 @@ function createServerState(opts: HcoConfig | AppContext | McpOptionsWithLauncher
     launcher = undefined;
   }
 
-  state = { db, launcher, executionService: new ExecutionService(db) };
+  state = { db, launcher, executionService: new ExecutionService(db, new FakeClaudeCodeAdapter()) };
 }
 
 function registerAllTools(server: McpServer): void {
