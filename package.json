@@ -1,0 +1,42 @@
+{
+  "name": "hco-mcp",
+  "version": "1.0.0",
+  "description": "HCO \u2014 Hermes Code Operator MCP control plane for engineering workflows",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "hco": "./dist/cli/main.js",
+    "hco-daemon": "./dist/daemon/main.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "lint": "eslint src/ tests/",
+    "format": "prettier --check src/ tests/",
+    "format:check": "prettier --check src/ tests/",
+    "format:fix": "prettier --write src/ tests/",
+    "test": "npm run build && node --import tsx --test tests/**/*.test.ts",
+    "start": "node dist/index.js",
+    "daemon": "node dist/daemon/main.js",
+    "diff:check": "git diff --check"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "better-sqlite3": "^11.8.1",
+    "zod": "^3.24.3"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.14.0",
+    "eslint": "^9.17.0",
+    "prettier": "^3.5.1",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2",
+    "typescript-eslint": "^8.26.1"
+  }
+}
