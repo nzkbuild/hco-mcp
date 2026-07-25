@@ -17,6 +17,8 @@ export interface ExecutionRow {
   policySnapshotJson: string;
   createdAt: string;
   updatedAt: string;
+  workerId?: string | null;
+  leaseUntil?: string | null;
 }
 
 // ─── Error types ────────────────────────────────────────────────────────────────
@@ -47,6 +49,8 @@ function rowToExecution(row: Record<string, unknown>): ExecutionRow {
     policySnapshotJson: row.policy_snapshot_json as string,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
+    workerId: (row.worker_id as string | null) ?? null,
+    leaseUntil: (row.lease_until as string | null) ?? null,
   };
 }
 
@@ -312,4 +316,115 @@ export function transitionToArchived(
   executionId: string,
 ): ExecutionRow | null {
   return transition(db, executionId, 'archived', 'archived');
+}
+
+// ─── Queue with lease ownership ─────────────────────────────────────────
+
+export function claimExecution(
+  db: Database.Database,
+  workerId: string,
+  leaseMs: number,
+): ExecutionRow | null {
+  const now = dbNow();
+  const leaseUntilDate = new Date(Date.now() + leaseMs);
+  const leaseUntil = leaseUntilDate.toISOString().replace('T', ' ').slice(0, 19);
+
+  const row = db
+    .prepare(
+      `UPDATE executions
+       SET status = 'running',
+           worker_id = ?,
+           lease_until = ?,
+           updated_at = ?
+       WHERE id = (
+         SELECT id FROM executions
+         WHERE status IN ('accepted', 'queued')
+            OR (status IN ('running', 'awaiting_input') AND lease_until <= ?)
+         ORDER BY
+           CASE status
+             WHEN 'queued' THEN 0
+             WHEN 'accepted' THEN 1
+             WHEN 'running' THEN 2
+             WHEN 'awaiting_input' THEN 3
+           END,
+           created_at
+         LIMIT 1
+       )
+       RETURNING *`,
+    )
+    .get(workerId, leaseUntil, now, now) as Record<string, unknown> | undefined;
+
+  return row ? rowToExecution(row) : null;
+}
+
+export function releaseExpiredExecutions(db: Database.Database): {
+  requeued: number;
+  failed: number;
+} {
+  const now = dbNow();
+
+  // Expired running -> back to queued (retry eligible)
+  const requeuedResult = db
+    .prepare(
+      `UPDATE executions
+       SET status = 'queued',
+           worker_id = NULL,
+           lease_until = NULL,
+           updated_at = ?
+       WHERE status = 'running'
+         AND lease_until IS NOT NULL
+         AND lease_until <= ?`,
+    )
+    .run(now, now);
+
+  // Expired awaiting_input -> failed (no auto-retry for input waits)
+  // Expired queued -> failed (never started)
+  const failedResult = db
+    .prepare(
+      `UPDATE executions
+       SET status = 'failed',
+           worker_id = NULL,
+           lease_until = NULL,
+           updated_at = ?
+       WHERE status IN ('awaiting_input', 'queued')
+         AND lease_until IS NOT NULL
+         AND lease_until <= ?`,
+    )
+    .run(now, now);
+
+  return { requeued: requeuedResult.changes, failed: failedResult.changes };
+}
+
+export function renewExecutionLease(
+  db: Database.Database,
+  executionId: string,
+  workerId: string,
+  leaseMs: number,
+): ExecutionRow | null {
+  const now = dbNow();
+  const leaseUntilDate = new Date(Date.now() + leaseMs);
+  const leaseUntil = leaseUntilDate.toISOString().replace('T', ' ').slice(0, 19);
+
+  const row = db
+    .prepare(
+      `UPDATE executions
+       SET lease_until = ?, updated_at = ?
+       WHERE execution_id = ?
+         AND worker_id = ?
+         AND status = 'running'
+       RETURNING *`,
+    )
+    .get(leaseUntil, now, executionId, workerId) as Record<string, unknown> | undefined;
+
+  return row ? rowToExecution(row) : null;
+}
+
+export function isExecutionTimedOut(execution: ExecutionRow, profile: ExecutionProfileV1): boolean {
+  if (!profile.max_execution_time_ms) return false;
+  if (execution.status !== 'running') return false;
+  if (!execution.createdAt) return false;
+
+  const started = new Date(execution.createdAt.replace(' ', 'T') + 'Z').getTime();
+  const elapsed = Date.now() - started;
+  return elapsed > profile.max_execution_time_ms;
 }

@@ -328,6 +328,18 @@ const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 8,
+    name: 'executions-queue',
+    up: (db) => {
+      db.exec(`
+        ALTER TABLE executions ADD COLUMN worker_id TEXT;
+        ALTER TABLE executions ADD COLUMN lease_until TEXT;
+        CREATE INDEX IF NOT EXISTS idx_executions_queue
+          ON executions(status, lease_until, created_at);
+      `);
+    },
+  },
 ];
 
 // ─── Migrate entrypoint ────────────────────────────────────────────────────────
