@@ -27,6 +27,7 @@ import {
   type McpSuccessResponse,
   ErrorCode,
 } from './errors.js';
+import { logDebug } from './logging.js';
 import { ExecutionService } from '../execution/service.js';
 import { ExecutionRequestV1 } from '../contract/execution-request.js';
 import { ExecutionProfileV1 } from '../contract/execution-profile.js';
@@ -178,6 +179,7 @@ export function handleSessionList(args: {
   status?: string | undefined;
   limit?: number | undefined;
 }): McpSuccessResponse {
+  logDebug('DEPRECATED: hco_session_list — use hco_execution_status');
   const sessions = listSessions(state.db, {
     ...(args.status ? { status: args.status as ClaudeSessionStatus } : {}),
     ...(args.limit !== undefined ? { limit: args.limit } : {}),
@@ -188,6 +190,7 @@ export function handleSessionList(args: {
 export function handleSessionStatus(args: {
   session_id: string;
 }): McpErrorResponse | McpSuccessResponse {
+  logDebug('DEPRECATED: hco_session_status — use hco_execution_status');
   const session = getSession(state.db, args.session_id);
   if (!session) {
     return error(ErrorCode.UNKNOWN_SESSION, `Session "${args.session_id}" not found`);
@@ -200,6 +203,7 @@ export async function handleSessionWait(args: {
   session_id: string;
   timeout_ms?: number | undefined;
 }): Promise<McpErrorResponse | McpSuccessResponse> {
+  logDebug('DEPRECATED: hco_session_wait — use hco_execution_wait');
   if (!state.launcher) {
     return error(ErrorCode.LAUNCHER_UNAVAILABLE, 'Launcher not available');
   }
@@ -214,6 +218,7 @@ export function handleSessionStop(args: {
   session_id: string;
   reason?: string | undefined;
 }): McpErrorResponse | McpSuccessResponse {
+  logDebug('DEPRECATED: hco_session_stop — use hco_execution_cancel');
   if (!state.launcher) {
     return error(ErrorCode.LAUNCHER_UNAVAILABLE, 'Launcher not available');
   }
@@ -237,6 +242,7 @@ export function handleSessionStop(args: {
 export function handleSessionArchive(args: {
   session_id: string;
 }): McpErrorResponse | McpSuccessResponse {
+  logDebug('DEPRECATED: hco_session_archive');
   if (!state.launcher) {
     return error(ErrorCode.LAUNCHER_UNAVAILABLE, 'Launcher not available');
   }
@@ -265,6 +271,7 @@ export function handleSessionStart(args: {
   repo_path: string;
   prompt: string;
 }): McpErrorResponse | McpSuccessResponse {
+  logDebug('DEPRECATED: hco_session_start — use hco_execution_submit + hco_execution_start');
   if (!state.launcher) {
     return error(ErrorCode.LAUNCHER_UNAVAILABLE, 'Launcher not available');
   }
