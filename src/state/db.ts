@@ -362,6 +362,29 @@ const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 10,
+    name: 'artifacts',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS artifacts (
+          id              INTEGER PRIMARY KEY AUTOINCREMENT,
+          artifact_id     TEXT NOT NULL,
+          execution_id    TEXT NOT NULL REFERENCES executions(execution_id),
+          key             TEXT NOT NULL,
+          content_type    TEXT NOT NULL DEFAULT 'application/octet-stream',
+          byte_length     INTEGER NOT NULL,
+          chunk_index     INTEGER NOT NULL DEFAULT 0,
+          total_chunks    INTEGER NOT NULL DEFAULT 1,
+          data            BLOB NOT NULL,
+          created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+          UNIQUE(artifact_id, chunk_index)
+        );
+        CREATE INDEX IF NOT EXISTS idx_artifacts_execution
+          ON artifacts(execution_id, key, chunk_index);
+      `);
+    },
+  },
 ];
 
 // ─── Migrate entrypoint ────────────────────────────────────────────────────────
