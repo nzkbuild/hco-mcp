@@ -12,6 +12,7 @@ import {
   transitionToFailed,
   transitionToCancelled,
   transitionToTimedOut,
+  transitionToAwaitingInput,
   isTerminal,
 } from '../state/execution-repository.js';
 import type { ExecutionRow } from '../state/execution-repository.js';
@@ -83,6 +84,10 @@ export class ExecutionService {
 
       if (attempt.aborted) {
         // Cancellation already handled by cancel() — no double transition
+        return;
+      }
+      if (attempt.signal === 'awaiting_input') {
+        transitionToAwaitingInput(this.db, executionId);
         return;
       }
       if (attempt.timedOut) {
@@ -191,5 +196,32 @@ export class ExecutionService {
         await new Promise((r) => setTimeout(r, pollMs));
       }
     }
+  }
+
+  continue(executionId: string, prompt: string): ExecutionRow {
+    const exec = getExecution(this.db, executionId);
+    if (!exec) {
+      throw new ExecutionLifecycleError(`Execution "${executionId}" not found`);
+    }
+    if (exec.status !== 'awaiting_input') {
+      throw new ExecutionLifecycleError(
+        `Cannot continue execution "${executionId}" in status "${exec.status}" (expected "awaiting_input")`,
+      );
+    }
+
+    if (!this.adapter.sendInput) {
+      throw new ExecutionLifecycleError('Adapter does not support sendInput');
+    }
+
+    const running = transitionToRunning(this.db, executionId);
+    if (!running) {
+      throw new ExecutionLifecycleError(
+        `Failed to transition "${executionId}" from awaiting_input to running`,
+      );
+    }
+
+    this.adapter.sendInput(executionId, prompt);
+
+    return running;
   }
 }

@@ -36,12 +36,26 @@ export interface ClaudeCodeAdapter {
   sendInput?(executionId: string, prompt: string): void;
 }
 
+// ─── Fake adapter options ──────────────────────────────────────────────────
+
+export interface FakeAdapterOptions {
+  /** Number of times to emit awaiting_input before finally completing. 0 (default) means never. */
+  awaitingInputCount?: number;
+}
+
 // ─── Fake adapter (tests only) ──────────────────────────────────────────────
 
 export class FakeClaudeCodeAdapter implements ClaudeCodeAdapter {
   private attempts = new Map<string, ProcessAttempt>();
   private processes = new Map<string, ChildProcess>();
   private attemptCounters = new Map<string, number>();
+  private onExitCallbacks = new Map<string, (attempt: ProcessAttempt) => void>();
+  private awaitingInputSeen = new Map<string, number>();
+  private readonly opts: FakeAdapterOptions;
+
+  constructor(opts?: FakeAdapterOptions) {
+    this.opts = opts ?? {};
+  }
 
   launch(
     execution: ExecutionRow,
@@ -64,6 +78,11 @@ export class FakeClaudeCodeAdapter implements ClaudeCodeAdapter {
     };
 
     this.attempts.set(execution.executionId, attempt);
+    this.onExitCallbacks.set(execution.executionId, onExit);
+
+    if (!this.awaitingInputSeen.has(execution.executionId)) {
+      this.awaitingInputSeen.set(execution.executionId, 0);
+    }
 
     // Simulate a process handle
     this.processes.set(execution.executionId, {
@@ -75,25 +94,42 @@ export class FakeClaudeCodeAdapter implements ClaudeCodeAdapter {
 
     // Fire onExit asynchronously with a small delay to simulate real process
     setImmediate(() => {
-      const current = this.attempts.get(execution.executionId);
-      if (!current) return;
-
-      current.finishedAt = new Date().toISOString().replace('T', ' ').slice(0, 19);
-      if (current.aborted) {
-        current.exitCode = -1;
-        onExit(current);
-        this.attempts.delete(execution.executionId);
-        this.processes.delete(execution.executionId);
-        return;
-      }
-      current.exitCode = 0;
-      current.signal = 'completed';
-      onExit(current);
-      this.attempts.delete(execution.executionId);
-      this.processes.delete(execution.executionId);
+      this.completeAttempt(execution.executionId);
     });
 
     return attempt;
+  }
+
+  private completeAttempt(executionId: string): void {
+    const current = this.attempts.get(executionId);
+    const onExit = this.onExitCallbacks.get(executionId);
+    if (!current || !onExit) return;
+
+    const count = this.opts.awaitingInputCount ?? 0;
+    const seen = this.awaitingInputSeen.get(executionId) ?? 0;
+
+    if (count > 0 && seen < count && !current.aborted) {
+      current.signal = 'awaiting_input';
+      this.awaitingInputSeen.set(executionId, seen + 1);
+      onExit(current);
+      return;
+    }
+
+    current.finishedAt = new Date().toISOString().replace('T', ' ').slice(0, 19);
+    if (current.aborted) {
+      current.exitCode = -1;
+      onExit(current);
+      this.attempts.delete(executionId);
+      this.processes.delete(executionId);
+      this.onExitCallbacks.delete(executionId);
+      return;
+    }
+    current.exitCode = 0;
+    current.signal = 'completed';
+    onExit(current);
+    this.attempts.delete(executionId);
+    this.processes.delete(executionId);
+    this.onExitCallbacks.delete(executionId);
   }
 
   attach(executionId: string): ProcessAttempt | null {
@@ -108,6 +144,17 @@ export class FakeClaudeCodeAdapter implements ClaudeCodeAdapter {
     if (process) {
       process.kill();
     }
+  }
+
+  sendInput(executionId: string, _prompt: string): void {
+    const attempt = this.attempts.get(executionId);
+    const onExit = this.onExitCallbacks.get(executionId);
+    if (!attempt || !onExit) return;
+
+    // Reset signal and fire completeAttempt again — it will check
+    // awaitingInputSeen vs awaitingInputCount
+    delete attempt.signal;
+    this.completeAttempt(executionId);
   }
 }
 
