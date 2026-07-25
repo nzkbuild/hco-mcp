@@ -124,10 +124,15 @@ export function createExecution(
     now,
   );
 
+  const createdEventPayload: Record<string, unknown> = { execution_id: executionId };
+  if (request.hermes_trace_id) {
+    createdEventPayload.hermes_trace_id = request.hermes_trace_id;
+  }
+
   db.prepare(
     `INSERT INTO execution_events (execution_id, type, payload)
      VALUES (?, 'created', ?)`,
-  ).run(executionId, JSON.stringify({ execution_id: executionId }));
+  ).run(executionId, JSON.stringify(createdEventPayload));
 
   const created = getExecution(db, executionId);
   if (!created) {

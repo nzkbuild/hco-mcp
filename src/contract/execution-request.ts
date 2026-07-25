@@ -56,6 +56,7 @@ export const ExecutionRequestV1 = z
     claude_config: ClaudeConfigurationV1,
     repository: REPOSITORY_SCHEMA,
     policy_ref: ID_STRING,
+    hermes_trace_id: ID_STRING.optional(),
     submitted_at: z.string().default(isoNow),
   })
   .strict();

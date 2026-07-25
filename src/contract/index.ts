@@ -21,3 +21,6 @@ export type { ExecutionResultV1 as ExecutionResultV1Type } from './execution-res
 
 export { PolicySnapshotV1 } from './policy-snapshot.js';
 export type { PolicySnapshotV1 as PolicySnapshotV1Type } from './policy-snapshot.js';
+
+export { ProviderProfileV1 } from './provider-profile.js';
+export type { ProviderProfileV1 as ProviderProfileV1Type } from './provider-profile.js';

@@ -79,6 +79,23 @@ export class ExecutionService {
 
     const profile = JSON.parse(running.profileSnapshotJson) as ExecutionProfileV1;
 
+    // Validate overrides against ExecutionProfile.allowed_overrides
+    const request = JSON.parse(running.requestJson) as ExecutionRequestV1;
+    const overrides = request.claude_config.overrides;
+    if (overrides) {
+      const allowed = profile.allowed_overrides;
+      const overrideKeys = Object.keys(overrides).filter(
+        (k) => overrides[k as keyof typeof overrides] !== undefined,
+      );
+      for (const key of overrideKeys) {
+        if (!allowed.includes(key)) {
+          throw new ExecutionLifecycleError(
+            `Override "${key}" is not in the allowed overrides list for profile "${profile.profile_id}"`,
+          );
+        }
+      }
+    }
+
     const onExit = (attempt: ReturnType<ClaudeCodeAdapter['launch']>): void => {
       logDebug(`ExecutionService.onExit: ${executionId} exitCode=${String(attempt.exitCode)}`);
 
@@ -158,6 +175,18 @@ export class ExecutionService {
     const finishedEvent = events.find((e) =>
       ['completed', 'failed', 'cancelled', 'timed_out'].includes(e.type as string),
     );
+    const createdEvent = events.find((e) => e.type === 'created');
+    let hermesTraceId: string | undefined;
+    if (createdEvent) {
+      try {
+        const payload = JSON.parse(createdEvent.payload as string) as Record<string, unknown>;
+        if (typeof payload.hermes_trace_id === 'string') {
+          hermesTraceId = payload.hermes_trace_id;
+        }
+      } catch {
+        // ignore parse errors
+      }
+    }
 
     return ExecutionResultV1.parse({
       execution_id: exec.executionId,
@@ -171,6 +200,7 @@ export class ExecutionService {
       submitted_at: exec.createdAt,
       started_at: startedEvent?.recorded_at ?? null,
       finished_at: finishedEvent?.recorded_at ?? exec.updatedAt,
+      hermes_trace_id: hermesTraceId,
     });
   }
 

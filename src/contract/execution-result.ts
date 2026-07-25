@@ -64,6 +64,7 @@ export const ExecutionResultV1 = z
     submitted_at: z.string().min(1).max(64),
     started_at: z.string().min(1).max(64).nullable().optional(),
     finished_at: z.string().min(1).max(64),
+    hermes_trace_id: ID_STRING.optional(),
   })
   .strict();
 
