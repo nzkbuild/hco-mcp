@@ -340,6 +340,28 @@ const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 9,
+    name: 'process-attempts',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS process_attempts (
+          id              INTEGER PRIMARY KEY AUTOINCREMENT,
+          attempt_id      TEXT NOT NULL UNIQUE,
+          execution_id    TEXT NOT NULL REFERENCES executions(execution_id),
+          attempt_number  INTEGER NOT NULL,
+          pid             INTEGER,
+          started_at      TEXT NOT NULL,
+          finished_at     TEXT,
+          exit_code       INTEGER,
+          timed_out       INTEGER NOT NULL DEFAULT 0,
+          aborted         INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE INDEX IF NOT EXISTS idx_process_attempts_execution
+          ON process_attempts(execution_id, attempt_number);
+      `);
+    },
+  },
 ];
 
 // ─── Migrate entrypoint ────────────────────────────────────────────────────────

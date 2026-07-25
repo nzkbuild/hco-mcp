@@ -428,3 +428,91 @@ export function isExecutionTimedOut(execution: ExecutionRow, profile: ExecutionP
   const elapsed = Date.now() - started;
   return elapsed > profile.max_execution_time_ms;
 }
+
+// ─── ProcessAttempt CRUD ─────────────────────────────────────────────────
+
+export interface ProcessAttemptRow {
+  id: number;
+  attemptId: string;
+  executionId: string;
+  attemptNumber: number;
+  pid: number | null;
+  startedAt: string;
+  finishedAt: string | null;
+  exitCode: number | null;
+  timedOut: boolean;
+  aborted: boolean;
+}
+
+function rowToProcessAttempt(row: Record<string, unknown>): ProcessAttemptRow {
+  return {
+    id: row.id as number,
+    attemptId: row.attempt_id as string,
+    executionId: row.execution_id as string,
+    attemptNumber: row.attempt_number as number,
+    pid: (row.pid as number | null) ?? null,
+    startedAt: row.started_at as string,
+    finishedAt: (row.finished_at as string | null) ?? null,
+    exitCode: (row.exit_code as number | null) ?? null,
+    timedOut: row.timed_out === 1 || row.timed_out === true,
+    aborted: row.aborted === 1 || row.aborted === true,
+  };
+}
+
+export function createProcessAttempt(
+  db: Database.Database,
+  attemptId: string,
+  executionId: string,
+  attemptNumber: number,
+  pid: number | null,
+): ProcessAttemptRow {
+  const now = dbNow();
+  db.prepare(
+    `INSERT INTO process_attempts (attempt_id, execution_id, attempt_number, pid, started_at)
+     VALUES (?, ?, ?, ?, ?)`,
+  ).run(attemptId, executionId, attemptNumber, pid, now);
+
+  const row = db.prepare('SELECT * FROM process_attempts WHERE attempt_id = ?').get(attemptId) as
+    Record<string, unknown> | undefined;
+  if (!row) throw new Error(`Failed to fetch created process attempt ${attemptId}`);
+  return rowToProcessAttempt(row);
+}
+
+export function getProcessAttempts(
+  db: Database.Database,
+  executionId: string,
+): ProcessAttemptRow[] {
+  const rows = db
+    .prepare('SELECT * FROM process_attempts WHERE execution_id = ? ORDER BY attempt_number')
+    .all(executionId) as Record<string, unknown>[];
+  return rows.map(rowToProcessAttempt);
+}
+
+export function getLatestProcessAttempt(
+  db: Database.Database,
+  executionId: string,
+): ProcessAttemptRow | null {
+  const row = db
+    .prepare(
+      'SELECT * FROM process_attempts WHERE execution_id = ? ORDER BY attempt_number DESC LIMIT 1',
+    )
+    .get(executionId) as Record<string, unknown> | undefined;
+  return row ? rowToProcessAttempt(row) : null;
+}
+
+export function finishProcessAttempt(
+  db: Database.Database,
+  attemptId: string,
+  exitCode: number,
+  timedOut: boolean,
+  aborted: boolean,
+): ProcessAttemptRow | null {
+  const now = dbNow();
+  db.prepare(
+    `UPDATE process_attempts SET finished_at = ?, exit_code = ?, timed_out = ?, aborted = ? WHERE attempt_id = ?`,
+  ).run(now, exitCode, timedOut ? 1 : 0, aborted ? 1 : 0, attemptId);
+
+  const row = db.prepare('SELECT * FROM process_attempts WHERE attempt_id = ?').get(attemptId) as
+    Record<string, unknown> | undefined;
+  return row ? rowToProcessAttempt(row) : null;
+}
