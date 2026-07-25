@@ -1,6 +1,10 @@
 import type { ChildProcess } from 'node:child_process';
+import { existsSync, lstatSync, realpathSync } from 'node:fs';
+import { isAbsolute } from 'node:path';
 import type { ExecutionRow } from '../state/execution-repository.js';
 import type { ExecutionProfileV1 } from '../contract/execution-profile.js';
+import { ExecutionRequestV1 } from '../contract/execution-request.js';
+import type { PolicySnapshotV1 } from '../contract/policy-snapshot.js';
 import type { ProcessRunner, RunOptions } from './runner.js';
 import { SpawnRunner } from './runner.js';
 import { filterEnv } from './launcher.js';
@@ -158,6 +162,34 @@ export class FakeClaudeCodeAdapter implements ClaudeCodeAdapter {
   }
 }
 
+// ─── Repository path validation (reused from launcher contract) ─────────────
+
+function validateRepositoryPath(raw: string): string {
+  if (!isAbsolute(raw)) {
+    throw new Error(`repository_not_found: "${raw}" is not an absolute path`);
+  }
+  if (!existsSync(raw)) {
+    throw new Error(`repository_not_found: "${raw}" does not exist`);
+  }
+  if (!lstatSync(raw).isDirectory()) {
+    throw new Error(`repository_not_found: "${raw}" is not a directory`);
+  }
+  const real = realpathSync(raw);
+  return real;
+}
+
+// ─── Binary resolution ──────────────────────────────────────────────────────
+
+function resolveBinary(profile: ExecutionProfileV1): string {
+  if (profile.claude_defaults.binary_path) {
+    return profile.claude_defaults.binary_path;
+  }
+  if (process.env.CLAUDE_BIN) {
+    return process.env.CLAUDE_BIN;
+  }
+  return 'claude';
+}
+
 // ─── Spawn adapter (real Claude Code) ───────────────────────────────────────
 
 export class SpawnAdapter implements ClaudeCodeAdapter {
@@ -175,8 +207,6 @@ export class SpawnAdapter implements ClaudeCodeAdapter {
     onExit: (attempt: ProcessAttempt) => void,
   ): ProcessAttempt {
     const executionId = execution.executionId;
-    const binaryPath = profile.claude_defaults.binary_path;
-    const sessionDir = profile.claude_defaults.session_dir;
 
     const attempt: ProcessAttempt = {
       id: `attempt-${executionId}-1`,
@@ -192,17 +222,76 @@ export class SpawnAdapter implements ClaudeCodeAdapter {
 
     this.attempts.set(executionId, attempt);
 
-    // Parse the original prompt from the stored request
-    let prompt = '';
+    // Validate request through the canonical contract
+    let requestJson: unknown;
     try {
-      const req = JSON.parse(execution.requestJson) as Record<string, unknown>;
-      const brief = req.brief as Record<string, unknown> | undefined;
-      if (brief?.original_request && typeof brief.original_request === 'string') {
-        prompt = brief.original_request;
+      requestJson = JSON.parse(execution.requestJson);
+    } catch {
+      attempt.signal = 'error';
+      attempt.finishedAt = new Date().toISOString().replace('T', ' ').slice(0, 19);
+      attempt.exitCode = -1;
+      setImmediate(() => {
+	        onExit(attempt);
+	      });
+      return attempt;
+    }
+
+    const parsed = ExecutionRequestV1.safeParse(requestJson);
+    if (!parsed.success) {
+      attempt.signal = 'error';
+      attempt.finishedAt = new Date().toISOString().replace('T', ' ').slice(0, 19);
+      attempt.exitCode = -1;
+      setImmediate(() => {
+	        onExit(attempt);
+	      });
+      return attempt;
+    }
+
+    const request = parsed.data;
+
+    // Validate repository path
+    let cwd: string;
+    try {
+      cwd = validateRepositoryPath(request.repository.path);
+    } catch {
+      attempt.signal = 'error';
+      attempt.finishedAt = new Date().toISOString().replace('T', ' ').slice(0, 19);
+      attempt.exitCode = -1;
+      setImmediate(() => {
+	        onExit(attempt);
+	      });
+      return attempt;
+    }
+
+    // Validate against policy boundary
+    let policy: PolicySnapshotV1 | undefined;
+    try {
+      const raw = JSON.parse(execution.policySnapshotJson) as unknown;
+      if (raw && typeof raw === 'object') {
+        policy = raw as PolicySnapshotV1;
       }
     } catch {
-      // no prompt available
+      // policy not parseable — allow through (boundary check is defense-in-depth)
     }
+
+    if (policy?.repository_boundary.local_path) {
+      const boundaryReal = realpathSync(policy.repository_boundary.local_path);
+      if (!cwd.startsWith(boundaryReal)) {
+        attempt.signal = 'error';
+        attempt.finishedAt = new Date().toISOString().replace('T', ' ').slice(0, 19);
+        attempt.exitCode = -1;
+        setImmediate(() => {
+	        onExit(attempt);
+	      });
+        return attempt;
+      }
+    }
+
+    // Resolve binary: profile → CLAUDE_BIN → 'claude'
+    const binaryPath = resolveBinary(profile);
+    const sessionDir = profile.claude_defaults.session_dir;
+
+    const prompt = request.brief.original_request;
 
     const args: string[] = [];
     if (prompt) {
@@ -214,7 +303,7 @@ export class SpawnAdapter implements ClaudeCodeAdapter {
 
     const runOpts: RunOptions = {
       sessionId: executionId,
-      cwd: '/workspace',
+      cwd,
       env: envFiltered,
       timeoutMs: profile.claude_defaults.default_timeout_ms,
       outputDir: sessionDir,

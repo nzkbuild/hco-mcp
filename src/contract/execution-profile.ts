@@ -14,7 +14,7 @@ const PERMISSION_MODE = z.enum(['default', 'acceptEdits', 'bypassPermissions', '
 
 const CLAUDE_DEFAULTS = z
   .object({
-    binary_path: z.string().min(1).max(4096),
+    binary_path: z.string().min(1).max(4096).optional(),
     default_model: z.string().min(1).max(256).optional(),
     default_thinking_effort: THINKING_EFFORT.optional(),
     default_timeout_ms: z.number().int().min(1000).max(3_600_000),
