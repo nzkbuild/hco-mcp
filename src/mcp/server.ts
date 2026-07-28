@@ -40,6 +40,7 @@ import { ProviderService } from '../provider/service.js';
 import { ProviderProfileV1 } from '../contract/provider-profile.js';
 import { WorkspaceService } from '../workspace/service.js';
 import { StatisticsService } from '../statistics/service.js';
+import { DoctorService } from '../doctor/service.js';
 
 // ─── Re-export for tests ─────────────────────────────────────────────────────
 
@@ -635,6 +636,24 @@ export function handleCompatibility(): McpSuccessResponse {
   });
 }
 
+// ─── Doctor handler ──────────────────────────────────────────────────────────
+
+export async function handleDoctor(args: {
+  category?: string | undefined;
+}): Promise<McpErrorResponse | McpSuccessResponse> {
+  try {
+    const doctor = new DoctorService({
+      db: state.db,
+      providerService: state.providerService,
+    });
+    const report = await doctor.runAll(args.category);
+    return success(report);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    return sanitizedError(ErrorCode.SPAWN_FAILED, `Doctor run failed: ${msg}`);
+  }
+}
+
 // ─── Statistics handlers ─────────────────────────────────────────────────────
 
 export function handleStatistics(): McpErrorResponse | McpSuccessResponse {
@@ -1057,6 +1076,27 @@ function registerAllTools(server: McpServer): void {
     },
     (args) => ({
       content: [{ type: 'text', text: JSON.stringify(handleSessionStart(args)) }],
+    }),
+  );
+
+  // ─── Doctor tool: 2.1-C2 ─────────────────────────────────────────────────
+
+  server.registerTool(
+    'hco_doctor',
+    {
+      description:
+        'Run systematic health checks across infrastructure, providers, execution, and security. Returns status (healthy/degraded/unhealthy) with per-check results.',
+      inputSchema: {
+        category: z
+          .string()
+          .min(1)
+          .max(64)
+          .optional()
+          .describe('Optional category filter: infrastructure, provider, execution, security'),
+      },
+    },
+    async (args) => ({
+      content: [{ type: 'text', text: JSON.stringify(await handleDoctor(args)) }],
     }),
   );
 
