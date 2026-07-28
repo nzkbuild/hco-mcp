@@ -1451,7 +1451,7 @@ export function createMcpServer(
 ): Promise<McpServer> {
   createServerState(opts);
   const server = new McpServer(
-    { name: 'hco-mcp', version: '2.0.0' },
+    { name: 'hco-mcp', version: '2.1.0' },
     { capabilities: { tools: {} } },
   );
   registerAllTools(server);
