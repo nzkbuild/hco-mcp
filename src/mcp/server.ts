@@ -36,6 +36,8 @@ import { FakeClaudeCodeAdapter, SpawnAdapter } from '../claude/adapter.js';
 import type { ClaudeCodeAdapter } from '../claude/adapter.js';
 import { ArtifactStorage, ARTIFACT_LIMITS } from '../state/artifact-store.js';
 import { getExecution } from '../state/execution-repository.js';
+import { ProviderService } from '../provider/service.js';
+import { ProviderProfileV1 } from '../contract/provider-profile.js';
 
 // ─── Re-export for tests ─────────────────────────────────────────────────────
 
@@ -49,6 +51,7 @@ interface ServerState {
   db: Database.Database;
   launcher: ClaudeLauncher | undefined;
   executionService: ExecutionService;
+  providerService: ProviderService;
 }
 
 let state: ServerState;
@@ -628,6 +631,132 @@ export function handleCompatibility(): McpSuccessResponse {
   });
 }
 
+// ─── Provider handlers ────────────────────────────────────────────────────────
+
+export function handleProviderRegister(args: {
+  profile_json: string;
+}): McpErrorResponse | McpSuccessResponse {
+  let profileParsed: unknown;
+  try {
+    profileParsed = JSON.parse(args.profile_json) as unknown;
+  } catch {
+    return error(ErrorCode.VALIDATION_ERROR, 'profile_json is not valid JSON');
+  }
+
+  const profile = ProviderProfileV1.safeParse(profileParsed);
+  if (!profile.success) {
+    return error(
+      ErrorCode.VALIDATION_ERROR,
+      `Invalid ProviderProfile: ${profile.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`,
+    );
+  }
+
+  try {
+    const result = state.providerService.register(profile.data);
+    return success({ provider_id: result.providerId, status: result.status });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    return sanitizedError(ErrorCode.SPAWN_FAILED, `Provider registration failed: ${msg}`);
+  }
+}
+
+export async function handleProviderValidate(args: {
+  provider_id: string;
+}): Promise<McpErrorResponse | McpSuccessResponse> {
+  try {
+    const result = await state.providerService.validate(args.provider_id);
+    return success(result);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    return sanitizedError(ErrorCode.SPAWN_FAILED, `Provider validation failed: ${msg}`);
+  }
+}
+
+export async function handleProviderModels(args: {
+  provider_id: string;
+}): Promise<McpErrorResponse | McpSuccessResponse> {
+  try {
+    const models = await state.providerService.discoverModels(args.provider_id);
+    return success({ models });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    return sanitizedError(ErrorCode.SPAWN_FAILED, `Model discovery failed: ${msg}`);
+  }
+}
+
+export function handleProviderMappingRecommend(args: {
+  provider_id: string;
+  model_ids: string[];
+}): McpErrorResponse | McpSuccessResponse {
+  try {
+    const models = args.model_ids.map((id) => ({
+      model_id: id,
+      display_name: id,
+      provider: 'anthropic' as const,
+      capabilities: [] as string[],
+    }));
+    const recommendations = state.providerService.recommendMappings(args.provider_id, models);
+    return success({ recommendations });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    return sanitizedError(ErrorCode.SPAWN_FAILED, `Mapping recommendation failed: ${msg}`);
+  }
+}
+
+export function handleProviderActivate(args: {
+  provider_id: string;
+  mapping_ids: string[];
+}): McpErrorResponse | McpSuccessResponse {
+  try {
+    const result = state.providerService.activate(args.provider_id, args.mapping_ids);
+    return success({
+      provider_id: result.provider.providerId,
+      status: result.provider.status,
+      activated_mappings: result.activated.length,
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    return sanitizedError(ErrorCode.SPAWN_FAILED, `Provider activation failed: ${msg}`);
+  }
+}
+
+export function handleProviderStatus(args: {
+  provider_id: string;
+}): McpErrorResponse | McpSuccessResponse {
+  try {
+    const status = state.providerService.getStatus(args.provider_id);
+    if (!status) {
+      return error(ErrorCode.VALIDATION_ERROR, `Provider "${args.provider_id}" not found`);
+    }
+    return success(status);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    return sanitizedError(ErrorCode.SPAWN_FAILED, `Provider status failed: ${msg}`);
+  }
+}
+
+export function handleProviderRollback(args: {
+  provider_id: string;
+}): McpErrorResponse | McpSuccessResponse {
+  try {
+    const result = state.providerService.rollback(args.provider_id);
+    return success({ provider_id: result.providerId, status: result.status });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    return sanitizedError(ErrorCode.SPAWN_FAILED, `Provider rollback failed: ${msg}`);
+  }
+}
+
+export function handleProviderList(): McpErrorResponse | McpSuccessResponse {
+  try {
+    const providers = state.providerService.listProviders();
+    return success({ providers });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    return sanitizedError(ErrorCode.SPAWN_FAILED, `Provider list failed: ${msg}`);
+  }
+}
+
 // ─── Execution continue handler ───────────────────────────────────────────────
 
 export function handleExecutionContinue(args: {
@@ -679,7 +808,12 @@ function createServerState(opts: HcoConfig | AppContext | McpOptionsWithLauncher
     launcher = undefined;
   }
 
-  state = { db, launcher, executionService: new ExecutionService(db, createAdapter()) };
+  state = {
+    db,
+    launcher,
+    executionService: new ExecutionService(db, createAdapter()),
+    providerService: new ProviderService(db),
+  };
 }
 
 function createAdapter(): ClaudeCodeAdapter {
@@ -849,6 +983,133 @@ function registerAllTools(server: McpServer): void {
     },
     (args) => ({
       content: [{ type: 'text', text: JSON.stringify(handleSessionStart(args)) }],
+    }),
+  );
+
+  // ─── Provider tools: 2.1-A4 ──────────────────────────────────────────────
+
+  const PROVIDER_ID_SCHEMA = z.string().min(1).max(256);
+
+  server.registerTool(
+    'hco_provider_register',
+    {
+      description: 'Register a new provider profile. Persists the provider with status "registered".',
+      inputSchema: {
+        profile_json: z
+          .string()
+          .min(1)
+          .max(65536)
+          .describe('JSON string of the ProviderProfile v1 contract'),
+      },
+    },
+    (args) => ({
+      content: [{ type: 'text', text: JSON.stringify(handleProviderRegister(args)) }],
+    }),
+  );
+
+  server.registerTool(
+    'hco_provider_validate',
+    {
+      description:
+        'Validate a provider: verify credentials, discover available models. Transitions registered → validated or failed.',
+      inputSchema: {
+        provider_id: PROVIDER_ID_SCHEMA.describe('The provider ID to validate'),
+      },
+    },
+    async (args) => ({
+      content: [{ type: 'text', text: JSON.stringify(await handleProviderValidate(args)) }],
+    }),
+  );
+
+  server.registerTool(
+    'hco_provider_models',
+    {
+      description: 'List available models from a provider via API discovery.',
+      inputSchema: {
+        provider_id: PROVIDER_ID_SCHEMA.describe('The provider ID to query'),
+      },
+    },
+    async (args) => ({
+      content: [{ type: 'text', text: JSON.stringify(await handleProviderModels(args)) }],
+    }),
+  );
+
+  server.registerTool(
+    'hco_provider_mapping_recommend',
+    {
+      description:
+        'Recommend HCO role mappings for provider models based on model name heuristics.',
+      inputSchema: {
+        provider_id: PROVIDER_ID_SCHEMA.describe('The provider ID'),
+        model_ids: z
+          .array(z.string().min(1).max(256))
+          .min(0)
+          .max(200)
+          .describe('Provider model IDs to map'),
+      },
+    },
+    (args) => ({
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify(handleProviderMappingRecommend(args)),
+        },
+      ],
+    }),
+  );
+
+  server.registerTool(
+    'hco_provider_activate',
+    {
+      description:
+        'Activate a validated provider and mark selected mappings as active. Transitions validated → active.',
+      inputSchema: {
+        provider_id: PROVIDER_ID_SCHEMA.describe('The provider ID to activate'),
+        mapping_ids: z
+          .array(z.string().min(1).max(256))
+          .min(0)
+          .max(200)
+          .describe('Mapping IDs to activate'),
+      },
+    },
+    (args) => ({
+      content: [{ type: 'text', text: JSON.stringify(handleProviderActivate(args)) }],
+    }),
+  );
+
+  server.registerTool(
+    'hco_provider_status',
+    {
+      description: 'Get full status of a provider: state, models, and mappings.',
+      inputSchema: {
+        provider_id: PROVIDER_ID_SCHEMA.describe('The provider ID to query'),
+      },
+    },
+    (args) => ({
+      content: [{ type: 'text', text: JSON.stringify(handleProviderStatus(args)) }],
+    }),
+  );
+
+  server.registerTool(
+    'hco_provider_list',
+    {
+      description: 'List all registered providers with their current status.',
+    },
+    () => ({
+      content: [{ type: 'text', text: JSON.stringify(handleProviderList()) }],
+    }),
+  );
+
+  server.registerTool(
+    'hco_provider_rollback',
+    {
+      description: 'Rollback a provider to failed status. Transitions active/validated → failed.',
+      inputSchema: {
+        provider_id: PROVIDER_ID_SCHEMA.describe('The provider ID to rollback'),
+      },
+    },
+    (args) => ({
+      content: [{ type: 'text', text: JSON.stringify(handleProviderRollback(args)) }],
     }),
   );
 
