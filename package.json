@@ -18,6 +18,7 @@
     "format:check": "prettier --check src/ tests/",
     "format:fix": "prettier --write src/ tests/",
     "test": "npm run build && node --import tsx --test tests/**/*.test.ts",
+    "test:acceptance": "npm run build && node --import tsx --test tests/acceptance/real-claude.test.ts",
     "start": "node dist/index.js",
     "daemon": "node dist/daemon/main.js",
     "diff:check": "git diff --check"
