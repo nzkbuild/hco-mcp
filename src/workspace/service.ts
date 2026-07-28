@@ -60,7 +60,9 @@ export class WorkspaceService {
     return archiveWorkspace(this.db, workspaceId);
   }
 
-  getStatus(workspaceId: string): { workspace: WorkspaceRow; provider: { status: string } | null } | null {
+  getStatus(
+    workspaceId: string,
+  ): { workspace: WorkspaceRow; provider: { status: string } | null } | null {
     const ws = getWorkspace(this.db, workspaceId);
     if (!ws) return null;
 

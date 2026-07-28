@@ -9,9 +9,7 @@ describe('FakeProviderAdapter', () => {
     const adapter = new FakeProviderAdapter();
     const result = await adapter.validate({});
     assert.equal(result.valid, true);
-    assert.ok(
-      typeof result.provider_models_count === 'number',
-    );
+    assert.ok(typeof result.provider_models_count === 'number');
   });
 
   it('validate returns configured result', async () => {
@@ -33,7 +31,12 @@ describe('FakeProviderAdapter', () => {
 
   it('discoverModels returns configured models', async () => {
     const customModels = [
-      { model_id: 'custom-1', display_name: 'Custom', provider: 'anthropic' as const, capabilities: [] },
+      {
+        model_id: 'custom-1',
+        display_name: 'Custom',
+        provider: 'anthropic' as const,
+        capabilities: [],
+      },
     ];
     const adapter = new FakeProviderAdapter({ models: customModels });
     const models = await adapter.discoverModels({});

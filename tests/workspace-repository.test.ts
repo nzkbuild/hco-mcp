@@ -55,7 +55,10 @@ describe('WorkspaceRepository', () => {
 
   it('createWorkspace persists with status active', () => {
     const provider = registerProvider(db, validProfile('ws-p1'));
-    const w = createWorkspace(db, ws({ workspace_id: 'ws-1', provider_profile_id: provider.providerId }));
+    const w = createWorkspace(
+      db,
+      ws({ workspace_id: 'ws-1', provider_profile_id: provider.providerId }),
+    );
     assert.equal(w.workspaceId, 'ws-1');
     assert.equal(w.status, 'active');
     assert.equal(w.repositoryOwner, 'nzkbuild');
@@ -67,7 +70,10 @@ describe('WorkspaceRepository', () => {
 
   it('getWorkspace retrieves inserted workspace', () => {
     const provider = registerProvider(db, validProfile('ws-p2'));
-    const created = createWorkspace(db, ws({ workspace_id: 'ws-2', provider_profile_id: provider.providerId }));
+    const created = createWorkspace(
+      db,
+      ws({ workspace_id: 'ws-2', provider_profile_id: provider.providerId }),
+    );
     const found = getWorkspace(db, created.workspaceId);
     assert.ok(found);
     assert.equal(found.workspaceId, 'ws-2');
@@ -84,7 +90,10 @@ describe('WorkspaceRepository', () => {
 
   it('listWorkspaces filters by status', () => {
     const provider = registerProvider(db, validProfile('ws-p4'));
-    const w = createWorkspace(db, ws({ workspace_id: 'ws-4', provider_profile_id: provider.providerId }));
+    const w = createWorkspace(
+      db,
+      ws({ workspace_id: 'ws-4', provider_profile_id: provider.providerId }),
+    );
     archiveWorkspace(db, w.workspaceId);
     const active = listWorkspaces(db, { status: 'active' });
     const archived = listWorkspaces(db, { status: 'archived' });
@@ -131,7 +140,10 @@ describe('WorkspaceRepository', () => {
 
   it('archiveWorkspace transitions active to archived', () => {
     const provider = registerProvider(db, validProfile('ws-p7'));
-    const w = createWorkspace(db, ws({ workspace_id: 'ws-7', provider_profile_id: provider.providerId }));
+    const w = createWorkspace(
+      db,
+      ws({ workspace_id: 'ws-7', provider_profile_id: provider.providerId }),
+    );
     const archived = archiveWorkspace(db, w.workspaceId);
     assert.ok(archived);
     assert.equal(archived.status, 'archived');
@@ -139,14 +151,20 @@ describe('WorkspaceRepository', () => {
 
   it('archiveWorkspace returns null for already archived', () => {
     const provider = registerProvider(db, validProfile('ws-p8'));
-    const w = createWorkspace(db, ws({ workspace_id: 'ws-8', provider_profile_id: provider.providerId }));
+    const w = createWorkspace(
+      db,
+      ws({ workspace_id: 'ws-8', provider_profile_id: provider.providerId }),
+    );
     archiveWorkspace(db, w.workspaceId);
     assert.equal(archiveWorkspace(db, w.workspaceId), null);
   });
 
   it('touchWorkspace updates lastResumedAt', () => {
     const provider = registerProvider(db, validProfile('ws-p9'));
-    const w = createWorkspace(db, ws({ workspace_id: 'ws-9', provider_profile_id: provider.providerId }));
+    const w = createWorkspace(
+      db,
+      ws({ workspace_id: 'ws-9', provider_profile_id: provider.providerId }),
+    );
     touchWorkspace(db, w.workspaceId);
     const updated = getWorkspace(db, w.workspaceId);
     assert.ok(updated);

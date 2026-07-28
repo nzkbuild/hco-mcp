@@ -69,10 +69,7 @@ describe('Migration v11 — providers and model mappings', () => {
       () => db.prepare("UPDATE provider_events SET type = 'hacked'").run(),
       /UPDATE rejected/,
     );
-    assert.throws(
-      () => db.prepare('DELETE FROM provider_events').run(),
-      /DELETE rejected/,
-    );
+    assert.throws(() => db.prepare('DELETE FROM provider_events').run(), /DELETE rejected/);
   });
 
   it('model_mappings table exists with correct columns', () => {

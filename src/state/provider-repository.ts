@@ -42,10 +42,7 @@ function dbNow(): string {
 
 // ─── CRUD ───────────────────────────────────────────────────────────────────────
 
-export function registerProvider(
-  db: Database.Database,
-  profile: ProviderProfileV1,
-): ProviderRow {
+export function registerProvider(db: Database.Database, profile: ProviderProfileV1): ProviderRow {
   const now = dbNow();
   const providerId = `provider-${profile.profile_id}`;
 
@@ -64,8 +61,10 @@ export function registerProvider(
     now,
   );
 
-  const row = db.prepare('SELECT * FROM providers WHERE provider_id = ?').get(providerId) as
-    Record<string, unknown>;
+  const row = db.prepare('SELECT * FROM providers WHERE provider_id = ?').get(providerId) as Record<
+    string,
+    unknown
+  >;
   return rowToProvider(row);
 }
 
@@ -76,9 +75,10 @@ export function getProvider(db: Database.Database, providerId: string): Provider
 }
 
 export function listProviders(db: Database.Database): ProviderRow[] {
-  const rows = db
-    .prepare('SELECT * FROM providers ORDER BY created_at DESC')
-    .all() as Record<string, unknown>[];
+  const rows = db.prepare('SELECT * FROM providers ORDER BY created_at DESC').all() as Record<
+    string,
+    unknown
+  >[];
   return rows.map(rowToProvider);
 }
 
@@ -101,9 +101,7 @@ export function updateProviderStatus(
   if (!current) return null;
 
   if (!isValidProviderTransition(current.status, newStatus)) {
-    throw new Error(
-      `Invalid provider transition: ${current.status} -> ${newStatus}`,
-    );
+    throw new Error(`Invalid provider transition: ${current.status} -> ${newStatus}`);
   }
 
   const now = dbNow();

@@ -47,14 +47,23 @@ export class StatisticsService {
     const failed = map.failed ?? 0;
     const cancelled = map.cancelled ?? 0;
     const timedOut = map.timed_out ?? 0;
-    const total = completed + failed + cancelled + timedOut + (map.accepted ?? 0) + (map.queued ?? 0) + (map.running ?? 0) + (map.awaiting_input ?? 0) + (map.archived ?? 0);
+    const total =
+      completed +
+      failed +
+      cancelled +
+      timedOut +
+      (map.accepted ?? 0) +
+      (map.queued ?? 0) +
+      (map.running ?? 0) +
+      (map.awaiting_input ?? 0) +
+      (map.archived ?? 0);
 
     const terminal = completed + failed + timedOut;
     const successRate = terminal > 0 ? completed / terminal : undefined;
 
     const avgDuration = this.db
       .prepare(
-        'SELECT AVG((julianday(updated_at) - julianday(created_at)) * 86400000) as avg_ms FROM executions WHERE status IN (\'completed\',\'failed\',\'timed_out\')',
+        "SELECT AVG((julianday(updated_at) - julianday(created_at)) * 86400000) as avg_ms FROM executions WHERE status IN ('completed','failed','timed_out')",
       )
       .get() as { avg_ms: number | null };
 

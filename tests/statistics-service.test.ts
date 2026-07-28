@@ -72,7 +72,11 @@ describe('StatisticsService', () => {
       assert.equal(stats.completed, 0);
     } finally {
       db2.close();
-      try { rmSync(emptyDir, { recursive: true, force: true }); } catch { /* ok */ }
+      try {
+        rmSync(emptyDir, { recursive: true, force: true });
+      } catch {
+        /* ok */
+      }
     }
   });
 });

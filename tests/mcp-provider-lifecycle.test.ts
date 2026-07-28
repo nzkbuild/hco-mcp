@@ -32,10 +32,7 @@ describe('MCP provider lifecycle (real transport)', () => {
       stderr: 'pipe',
     });
 
-    client = new Client(
-      { name: 'hco-provider-test', version: '0.1.0' },
-      { capabilities: {} },
-    );
+    client = new Client({ name: 'hco-provider-test', version: '0.1.0' }, { capabilities: {} });
     await client.connect(transport);
   });
 
@@ -141,5 +138,4 @@ describe('MCP provider lifecycle (real transport)', () => {
     assert.ok(parsed.error, `should have error, got: ${JSON.stringify(parsed)}`);
     assert.equal((parsed.error as Record<string, unknown>).code, 'VALIDATION_ERROR');
   });
-
 });

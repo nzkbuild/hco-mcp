@@ -71,13 +71,7 @@ describe('ModelMappingRepository', () => {
 
   it('updateMappingValidation toggles validated flag', () => {
     const provider = registerProvider(db, validProfile('mapping-toggle'));
-    const mapping = createModelMapping(
-      db,
-      'toggle-1',
-      provider.providerId,
-      'model-x',
-      'fable',
-    );
+    const mapping = createModelMapping(db, 'toggle-1', provider.providerId, 'model-x', 'fable');
     assert.equal(mapping.validated, 0);
 
     const updated = updateMappingValidation(db, 'toggle-1', true);

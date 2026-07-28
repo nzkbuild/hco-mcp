@@ -28,10 +28,7 @@ describe('MCP workspace lifecycle (real transport)', () => {
       stderr: 'pipe',
     });
 
-    client = new Client(
-      { name: 'hco-workspace-test', version: '0.1.0' },
-      { capabilities: {} },
-    );
+    client = new Client({ name: 'hco-workspace-test', version: '0.1.0' }, { capabilities: {} });
     await client.connect(transport);
 
     // Register and activate a provider first

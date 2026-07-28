@@ -45,32 +45,32 @@ All statistics are derived from existing `executions` data — no new event stre
 
 `hco_doctor` runs 15 systematic health checks across 4 categories:
 
-| Category | Checks |
-|----------|--------|
-| Infrastructure | Node.js version, Claude binary, SQLite health, disk space |
-| Provider | Connectivity, authentication, model discovery |
-| Execution | Tool support, streaming status, adapter type, queue health |
-| Security | MCP protocol discipline, repository permissions, environment vars, acceptance readiness |
+| Category       | Checks                                                                                  |
+| -------------- | --------------------------------------------------------------------------------------- |
+| Infrastructure | Node.js version, Claude binary, SQLite health, disk space                               |
+| Provider       | Connectivity, authentication, model discovery                                           |
+| Execution      | Tool support, streaming status, adapter type, queue health                              |
+| Security       | MCP protocol discipline, repository permissions, environment vars, acceptance readiness |
 
 Results are aggregated into `healthy` / `degraded` / `unhealthy` status with per-check detail and duration.
 
 ## New MCP Tools (12)
 
-| Tool | Category |
-|------|----------|
-| `hco_provider_register` | Provider management |
-| `hco_provider_validate` | Provider management |
-| `hco_provider_models` | Model discovery |
-| `hco_provider_mapping_recommend` | Model mapping |
-| `hco_provider_activate` | Provider lifecycle |
-| `hco_provider_status` | Provider status |
-| `hco_provider_list` | Provider listing |
-| `hco_provider_rollback` | Provider lifecycle |
-| `hco_workspace_resume` | Workspace operations |
-| `hco_workspace_list` | Workspace operations |
-| `hco_workspace_status` | Workspace operations |
-| `hco_statistics` | Operational intelligence |
-| `hco_doctor` | Diagnostics |
+| Tool                             | Category                 |
+| -------------------------------- | ------------------------ |
+| `hco_provider_register`          | Provider management      |
+| `hco_provider_validate`          | Provider management      |
+| `hco_provider_models`            | Model discovery          |
+| `hco_provider_mapping_recommend` | Model mapping            |
+| `hco_provider_activate`          | Provider lifecycle       |
+| `hco_provider_status`            | Provider status          |
+| `hco_provider_list`              | Provider listing         |
+| `hco_provider_rollback`          | Provider lifecycle       |
+| `hco_workspace_resume`           | Workspace operations     |
+| `hco_workspace_list`             | Workspace operations     |
+| `hco_workspace_status`           | Workspace operations     |
+| `hco_statistics`                 | Operational intelligence |
+| `hco_doctor`                     | Diagnostics              |
 
 ## Contract Changes
 
@@ -87,10 +87,10 @@ Results are aggregated into `healthy` / `degraded` / `unhealthy` status with per
 
 ## Database Migrations
 
-| Migration | Version | Creates |
-|-----------|---------|---------|
-| v11 | providers-and-mappings | `providers`, `provider_events` (append-only), `model_mappings` |
-| v12 | workspaces | `workspaces` with FK to providers, partial unique index |
+| Migration | Version                | Creates                                                        |
+| --------- | ---------------------- | -------------------------------------------------------------- |
+| v11       | providers-and-mappings | `providers`, `provider_events` (append-only), `model_mappings` |
+| v12       | workspaces             | `workspaces` with FK to providers, partial unique index        |
 
 ## Architecture
 
@@ -124,6 +124,7 @@ No migration required. New tables (v11, v12) are created automatically by the mi
 ## Test Coverage
 
 All new functionality includes:
+
 - Contract validation tests (Zod schema parsing)
 - Repository tests (state machine transitions, FK constraints, append-only enforcement)
 - Service tests (orchestration, adapter injection)

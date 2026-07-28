@@ -52,10 +52,7 @@ export function createModelMapping(
   return rowToMapping(row);
 }
 
-export function listModelMappings(
-  db: Database.Database,
-  providerId: string,
-): ModelMappingRow[] {
+export function listModelMappings(db: Database.Database, providerId: string): ModelMappingRow[] {
   const rows = db
     .prepare('SELECT * FROM model_mappings WHERE provider_id = ? ORDER BY created_at ASC')
     .all(providerId) as Record<string, unknown>[];
@@ -71,16 +68,12 @@ export function updateMappingValidation(
     validated ? 1 : 0,
     mappingId,
   );
-  const row = db
-    .prepare('SELECT * FROM model_mappings WHERE mapping_id = ?')
-    .get(mappingId) as Record<string, unknown> | undefined;
+  const row = db.prepare('SELECT * FROM model_mappings WHERE mapping_id = ?').get(mappingId) as
+    Record<string, unknown> | undefined;
   return row ? rowToMapping(row) : null;
 }
 
-export function deleteMappingsByProvider(
-  db: Database.Database,
-  providerId: string,
-): number {
+export function deleteMappingsByProvider(db: Database.Database, providerId: string): number {
   const result = db.prepare('DELETE FROM model_mappings WHERE provider_id = ?').run(providerId);
   return result.changes;
 }

@@ -1,4 +1,8 @@
-import type { ProviderAdapter, ProviderValidationResult, ProviderHealthResult } from '../contract/provider-adapter.js';
+import type {
+  ProviderAdapter,
+  ProviderValidationResult,
+  ProviderHealthResult,
+} from '../contract/provider-adapter.js';
 import type { ModelInfoV1 } from '../contract/model-info.js';
 
 const FAKE_MODELS: readonly ModelInfoV1[] = [

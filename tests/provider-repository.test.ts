@@ -98,10 +98,7 @@ describe('ProviderRepository', () => {
   });
 
   it('updateProviderStatus returns null for unknown provider', () => {
-    assert.equal(
-      updateProviderStatus(db, 'provider-nonexistent', 'validated', 'test'),
-      null,
-    );
+    assert.equal(updateProviderStatus(db, 'provider-nonexistent', 'validated', 'test'), null);
   });
 
   it('provider events are appended on status change', () => {

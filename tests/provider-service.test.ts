@@ -61,9 +61,24 @@ describe('ProviderService', () => {
 
   it('recommendMappings suggests roles by model name', () => {
     const models = [
-      { model_id: 'claude-sonnet-5', display_name: 'Sonnet 5', provider: 'anthropic' as const, capabilities: [] },
-      { model_id: 'claude-opus-5', display_name: 'Opus 5', provider: 'anthropic' as const, capabilities: [] },
-      { model_id: 'gpt-5.6', display_name: 'GPT 5.6', provider: 'openai' as const, capabilities: [] },
+      {
+        model_id: 'claude-sonnet-5',
+        display_name: 'Sonnet 5',
+        provider: 'anthropic' as const,
+        capabilities: [],
+      },
+      {
+        model_id: 'claude-opus-5',
+        display_name: 'Opus 5',
+        provider: 'anthropic' as const,
+        capabilities: [],
+      },
+      {
+        model_id: 'gpt-5.6',
+        display_name: 'GPT 5.6',
+        provider: 'openai' as const,
+        capabilities: [],
+      },
     ];
     const recs = service.recommendMappings('provider-test', models);
     assert.equal(recs.length, 3);
@@ -82,7 +97,12 @@ describe('ProviderService', () => {
       .run(row.providerId);
 
     const models = [
-      { model_id: 'claude-sonnet-5', display_name: 'Sonnet', provider: 'anthropic' as const, capabilities: [] },
+      {
+        model_id: 'claude-sonnet-5',
+        display_name: 'Sonnet',
+        provider: 'anthropic' as const,
+        capabilities: [],
+      },
     ];
     const recs = service.recommendMappings(row.providerId, models);
     // persist mappings manually
@@ -104,9 +124,7 @@ describe('ProviderService', () => {
     const profile = validProfile();
     const row = service.register(profile);
     const db2 = db;
-    db2
-      .prepare("UPDATE providers SET status = 'active' WHERE provider_id = ?")
-      .run(row.providerId);
+    db2.prepare("UPDATE providers SET status = 'active' WHERE provider_id = ?").run(row.providerId);
 
     const result = service.rollback(row.providerId);
     assert.equal(result.status, 'failed');

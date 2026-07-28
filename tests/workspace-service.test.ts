@@ -106,8 +106,7 @@ describe('WorkspaceService', () => {
   it('createOrResume rejects inactive provider', () => {
     registerProvider(db, validProfile('ws-svc-inactive'));
     assert.throws(
-      () =>
-        service.createOrResume('o', 'r', '/p', 'provider-ws-svc-inactive'),
+      () => service.createOrResume('o', 'r', '/p', 'provider-ws-svc-inactive'),
       /not active/,
     );
   });

@@ -63,9 +63,7 @@ describe('DoctorService', () => {
       assert.ok(typeof c.pass === 'boolean');
       assert.ok(typeof c.detail === 'string');
       assert.ok(typeof c.duration_ms === 'number');
-      assert.ok(
-        c.severity === 'ok' || c.severity === 'warning' || c.severity === 'error',
-      );
+      assert.ok(c.severity === 'ok' || c.severity === 'warning' || c.severity === 'error');
     }
   });
 });

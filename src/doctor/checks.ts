@@ -41,7 +41,9 @@ export function checkClaudeBinary(_ctx: DoctorContext): Promise<DoctorResult> {
 
 export function checkSqlite(ctx: DoctorContext): DoctorResult {
   try {
-    const row = ctx.db.prepare('SELECT COUNT(*) as cnt FROM schema_version').get() as { cnt: number };
+    const row = ctx.db.prepare('SELECT COUNT(*) as cnt FROM schema_version').get() as {
+      cnt: number;
+    };
     const pragma = ctx.db.pragma('journal_mode', { simple: true }) as string;
     return ok(`SQLite accessible, ${String(row.cnt)} migrations, journal=${pragma}`);
   } catch (e: unknown) {
@@ -94,7 +96,9 @@ export function checkProviderAuth(ctx: DoctorContext): DoctorResult {
     }
   }
   if (withoutKeys.length > 0) {
-    return warn(`Missing keys for: ${withoutKeys.join(', ')}. Keys set: ${String(withKeys.length)}`);
+    return warn(
+      `Missing keys for: ${withoutKeys.join(', ')}. Keys set: ${String(withKeys.length)}`,
+    );
   }
   return ok(`All ${String(withKeys.length)} providers have API keys set`);
 }
@@ -107,7 +111,8 @@ export async function checkModelDiscovery(ctx: DoctorContext): Promise<DoctorRes
     const first = active[0];
     if (!first) return ok('No active providers for model discovery');
     const models = await ctx.providerService.discoverModels(first.providerId);
-    if (models.length > 0) return ok(`Discovered ${String(models.length)} models from ${first.profileId}`);
+    if (models.length > 0)
+      return ok(`Discovered ${String(models.length)} models from ${first.profileId}`);
     return warn(`0 models discovered from ${first.profileId}`);
   } catch {
     return warn('Model discovery not yet implemented for this provider type');

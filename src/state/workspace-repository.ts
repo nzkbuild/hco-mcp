@@ -43,10 +43,7 @@ function dbNow(): string {
 
 // ─── CRUD ───────────────────────────────────────────────────────────────────────
 
-export function createWorkspace(
-  db: Database.Database,
-  workspace: WorkspaceV1,
-): WorkspaceRow {
+export function createWorkspace(db: Database.Database, workspace: WorkspaceV1): WorkspaceRow {
   const now = dbNow();
   db.prepare(
     `INSERT INTO workspaces (workspace_id, repository_owner, repository_name, repository_path, provider_profile_id, model_mapping_id, policy_snapshot_json, environment_profile_json, status, created_at, last_resumed_at)
@@ -70,29 +67,23 @@ export function createWorkspace(
   return rowToWorkspace(row);
 }
 
-export function getWorkspace(
-  db: Database.Database,
-  workspaceId: string,
-): WorkspaceRow | null {
-  const row = db
-    .prepare('SELECT * FROM workspaces WHERE workspace_id = ?')
-    .get(workspaceId) as Record<string, unknown> | undefined;
+export function getWorkspace(db: Database.Database, workspaceId: string): WorkspaceRow | null {
+  const row = db.prepare('SELECT * FROM workspaces WHERE workspace_id = ?').get(workspaceId) as
+    Record<string, unknown> | undefined;
   return row ? rowToWorkspace(row) : null;
 }
 
-export function listWorkspaces(
-  db: Database.Database,
-  opts?: { status?: string },
-): WorkspaceRow[] {
+export function listWorkspaces(db: Database.Database, opts?: { status?: string }): WorkspaceRow[] {
   let rows: Record<string, unknown>[];
   if (opts?.status) {
     rows = db
       .prepare('SELECT * FROM workspaces WHERE status = ? ORDER BY created_at DESC')
       .all(opts.status) as Record<string, unknown>[];
   } else {
-    rows = db
-      .prepare('SELECT * FROM workspaces ORDER BY created_at DESC')
-      .all() as Record<string, unknown>[];
+    rows = db.prepare('SELECT * FROM workspaces ORDER BY created_at DESC').all() as Record<
+      string,
+      unknown
+    >[];
   }
   return rows.map(rowToWorkspace);
 }
@@ -120,16 +111,11 @@ export function findWorkspaceByRepository(
   return rows.map(rowToWorkspace);
 }
 
-export function archiveWorkspace(
-  db: Database.Database,
-  workspaceId: string,
-): WorkspaceRow | null {
+export function archiveWorkspace(db: Database.Database, workspaceId: string): WorkspaceRow | null {
   const existing = getWorkspace(db, workspaceId);
   if (!existing || existing.status === 'archived') return null;
 
-  db.prepare("UPDATE workspaces SET status = 'archived' WHERE workspace_id = ?").run(
-    workspaceId,
-  );
+  db.prepare("UPDATE workspaces SET status = 'archived' WHERE workspace_id = ?").run(workspaceId);
   return getWorkspace(db, workspaceId);
 }
 

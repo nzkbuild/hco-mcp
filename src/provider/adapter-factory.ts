@@ -1,4 +1,8 @@
-import type { ProviderAdapter, ProviderHealthResult, ProviderValidationResult } from '../contract/provider-adapter.js';
+import type {
+  ProviderAdapter,
+  ProviderHealthResult,
+  ProviderValidationResult,
+} from '../contract/provider-adapter.js';
 import type { ProviderProfileV1 } from '../contract/provider-profile.js';
 import type { ModelInfoV1 } from '../contract/model-info.js';
 import { AnthropicProviderAdapter } from './anthropic-adapter.js';

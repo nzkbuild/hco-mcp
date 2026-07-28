@@ -710,10 +710,7 @@ export function handleWorkspaceStatus(args: {
   try {
     const status = state.workspaceService.getStatus(args.workspace_id);
     if (!status) {
-      return error(
-        ErrorCode.VALIDATION_ERROR,
-        `Workspace "${args.workspace_id}" not found`,
-      );
+      return error(ErrorCode.VALIDATION_ERROR, `Workspace "${args.workspace_id}" not found`);
     }
     return success(status);
   } catch (err: unknown) {
@@ -1130,7 +1127,9 @@ function registerAllTools(server: McpServer): void {
         owner: WS_OWNER_SCHEMA.describe('Repository owner'),
         repo: WS_REPO_SCHEMA.describe('Repository name'),
         path: WS_PATH_SCHEMA.describe('Local repository path'),
-        provider_profile_id: WS_PROVIDER_ID_SCHEMA.describe('Active provider profile ID to associate'),
+        provider_profile_id: WS_PROVIDER_ID_SCHEMA.describe(
+          'Active provider profile ID to associate',
+        ),
       },
     },
     (args) => ({
@@ -1168,7 +1167,8 @@ function registerAllTools(server: McpServer): void {
   server.registerTool(
     'hco_provider_register',
     {
-      description: 'Register a new provider profile. Persists the provider with status "registered".',
+      description:
+        'Register a new provider profile. Persists the provider with status "registered".',
       inputSchema: {
         profile_json: z
           .string()
