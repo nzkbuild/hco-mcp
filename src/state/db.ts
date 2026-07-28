@@ -363,6 +363,66 @@ const migrations: Migration[] = [
     },
   },
   {
+    version: 11,
+    name: 'providers-and-mappings',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS providers (
+          id                INTEGER PRIMARY KEY AUTOINCREMENT,
+          provider_id       TEXT NOT NULL UNIQUE,
+          profile_id        TEXT NOT NULL UNIQUE,
+          provider          TEXT NOT NULL,
+          api_key_env       TEXT NOT NULL,
+          base_url_env      TEXT,
+          default_model     TEXT,
+          provider_metadata TEXT,
+          status            TEXT NOT NULL DEFAULT 'registered'
+            CHECK (status IN ('registered', 'validated', 'active', 'failed')),
+          created_at        TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_providers_status ON providers(status);
+
+        CREATE TABLE IF NOT EXISTS provider_events (
+          id          INTEGER PRIMARY KEY AUTOINCREMENT,
+          provider_id TEXT NOT NULL REFERENCES providers(provider_id),
+          type        TEXT NOT NULL,
+          payload     TEXT NOT NULL DEFAULT '{}',
+          recorded_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_provider_events_provider ON provider_events(provider_id, id);
+        CREATE INDEX IF NOT EXISTS idx_provider_events_type ON provider_events(type);
+
+        CREATE TRIGGER IF NOT EXISTS trg_provider_events_no_update
+        BEFORE UPDATE ON provider_events
+        BEGIN
+          SELECT RAISE(FAIL, 'provider_events table is append-only: UPDATE rejected');
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS trg_provider_events_no_delete
+        BEFORE DELETE ON provider_events
+        BEGIN
+          SELECT RAISE(FAIL, 'provider_events table is append-only: DELETE rejected');
+        END;
+
+        CREATE TABLE IF NOT EXISTS model_mappings (
+          id               INTEGER PRIMARY KEY AUTOINCREMENT,
+          mapping_id       TEXT NOT NULL UNIQUE,
+          provider_id      TEXT NOT NULL REFERENCES providers(provider_id),
+          provider_model_id TEXT NOT NULL,
+          hco_role         TEXT NOT NULL
+            CHECK (hco_role IN ('fable', 'opus', 'sonnet', 'haiku', 'subagent')),
+          validated        INTEGER NOT NULL DEFAULT 0,
+          created_at       TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_model_mappings_provider ON model_mappings(provider_id);
+      `);
+    },
+  },
+  {
     version: 10,
     name: 'artifacts',
     up: (db) => {
