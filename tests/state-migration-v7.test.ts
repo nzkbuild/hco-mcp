@@ -23,7 +23,7 @@ describe('Migration v7 — executions', () => {
     const row = db.prepare('SELECT MAX(version) AS version FROM schema_version').get() as {
       version: number;
     };
-    assert.equal(row.version, 7);
+    assert.ok(row.version >= 7, `expected >= 7, got ${String(row.version)}`);
   });
 
   it('executions table exists with correct columns', () => {

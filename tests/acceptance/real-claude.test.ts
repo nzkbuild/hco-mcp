@@ -64,7 +64,10 @@ async function submitExecution(
 
   const policyJson = JSON.stringify({
     repository_boundary: { owner: 'acceptance', repo: 'test', local_path: repoPath },
-    permission_limits: { allowed_tools: ['Read', 'Write', 'Edit', 'Bash'], deny_shell_access: true },
+    permission_limits: {
+      allowed_tools: ['Read', 'Write', 'Edit', 'Bash'],
+      deny_shell_access: true,
+    },
     timeout_ceiling_ms: timeoutMs + 60_000,
     max_concurrency: 4,
     approval_required: false,
@@ -120,8 +123,16 @@ if (ACCEPTANCE && ADAPTER === 'spawn') {
       } catch {
         /* ignore */
       }
-      try { rmSync(dbDir, { recursive: true, force: true }); } catch { /* Windows WAL */ }
-      try { rmSync(repoPath, { recursive: true, force: true }); } catch { /* Windows WAL */ }
+      try {
+        rmSync(dbDir, { recursive: true, force: true });
+      } catch {
+        /* Windows WAL */
+      }
+      try {
+        rmSync(repoPath, { recursive: true, force: true });
+      } catch {
+        /* Windows WAL */
+      }
     });
 
     it('completes real Claude Code execution and verifies repository change', async () => {
@@ -129,7 +140,10 @@ if (ACCEPTANCE && ADAPTER === 'spawn') {
 
       const tools = await client.listTools();
       const names = tools.tools.map((t) => t.name);
-      assert.ok(names.includes('hco_execution_submit'), 'tools/list should include hco_execution_submit');
+      assert.ok(
+        names.includes('hco_execution_submit'),
+        'tools/list should include hco_execution_submit',
+      );
       assert.ok(names.includes('hco_execution_start'));
       assert.ok(names.includes('hco_execution_wait'));
       assert.ok(names.includes('hco_execution_result'));
@@ -141,7 +155,11 @@ if (ACCEPTANCE && ADAPTER === 'spawn') {
       const startParsed = parseResponse(startResult.content);
       assert.ok(startParsed.data);
       const startStatus = (startParsed.data as Record<string, unknown>).status as string;
-      assert.equal(startStatus, 'running', `start should transition to running, got: ${startStatus}`);
+      assert.equal(
+        startStatus,
+        'running',
+        `start should transition to running, got: ${startStatus}`,
+      );
 
       const waitResult = await client.callTool({
         name: 'hco_execution_wait',
@@ -181,11 +199,7 @@ if (ACCEPTANCE && ADAPTER === 'spawn') {
         .split('\n')
         .filter((l) => l.length > 0)
         .filter((l) => !l.includes('VERIFIED.txt'));
-      assert.equal(
-        changedFiles.length,
-        0,
-        `no unexpected file changes, got: ${gitStatus}`,
-      );
+      assert.equal(changedFiles.length, 0, `no unexpected file changes, got: ${gitStatus}`);
 
       const resultStr = JSON.stringify(resultParsed);
       assert.ok(!resultStr.includes('ANTHROPIC_API_KEY'));
@@ -194,42 +208,47 @@ if (ACCEPTANCE && ADAPTER === 'spawn') {
       assert.ok(!resultStr.toLowerCase().includes('secret'));
     });
 
-    it('timeout kills Claude process and records timed_out state', { timeout: 60_000 }, async () => {
-      const timeoutRepo = mkdtempSync(join(tmpdir(), 'hco-acceptance-timeout-'));
-      execSync('git init', { cwd: timeoutRepo });
-      execSync('git config user.email "acceptance@hco.test"', { cwd: timeoutRepo });
-      execSync('git config user.name "HCO Acceptance"', { cwd: timeoutRepo });
-      writeFileSync(join(timeoutRepo, 'README.md'), '# HCO Timeout Test\n');
-      execSync('git add -A && git commit -m "initial"', { cwd: timeoutRepo });
+    it(
+      'timeout kills Claude process and records timed_out state',
+      { timeout: 60_000 },
+      async () => {
+        const timeoutRepo = mkdtempSync(join(tmpdir(), 'hco-acceptance-timeout-'));
+        execSync('git init', { cwd: timeoutRepo });
+        execSync('git config user.email "acceptance@hco.test"', { cwd: timeoutRepo });
+        execSync('git config user.name "HCO Acceptance"', { cwd: timeoutRepo });
+        writeFileSync(join(timeoutRepo, 'README.md'), '# HCO Timeout Test\n');
+        execSync('git add -A && git commit -m "initial"', { cwd: timeoutRepo });
 
-      try {
-        const executionId = await submitExecution(client, timeoutRepo, 5_000);
+        try {
+          const executionId = await submitExecution(client, timeoutRepo, 5_000);
 
-        const startResult = await client.callTool({
-          name: 'hco_execution_start',
-          arguments: { execution_id: executionId },
-        });
-        const startParsed = parseResponse(startResult.content);
-        assert.equal(
-          (startParsed.data as Record<string, unknown>).status,
-          'running',
-        );
+          const startResult = await client.callTool({
+            name: 'hco_execution_start',
+            arguments: { execution_id: executionId },
+          });
+          const startParsed = parseResponse(startResult.content);
+          assert.equal((startParsed.data as Record<string, unknown>).status, 'running');
 
-        const waitResult = await client.callTool({
-          name: 'hco_execution_wait',
-          arguments: { execution_id: executionId, timeout_ms: 30_000 },
-        });
-        const waitParsed = parseResponse(waitResult.content);
-        assert.ok(waitParsed.data);
-        const status = (waitParsed.data as Record<string, unknown>).status as string;
-        assert.ok(
-          status === 'timed_out' || status === 'completed',
-          `expected timed_out or completed, got: ${status}`,
-        );
-      } finally {
-        try { rmSync(timeoutRepo, { recursive: true, force: true }); } catch { /* Windows */ }
-      }
-    });
+          const waitResult = await client.callTool({
+            name: 'hco_execution_wait',
+            arguments: { execution_id: executionId, timeout_ms: 30_000 },
+          });
+          const waitParsed = parseResponse(waitResult.content);
+          assert.ok(waitParsed.data);
+          const status = (waitParsed.data as Record<string, unknown>).status as string;
+          assert.ok(
+            status === 'timed_out' || status === 'completed',
+            `expected timed_out or completed, got: ${status}`,
+          );
+        } finally {
+          try {
+            rmSync(timeoutRepo, { recursive: true, force: true });
+          } catch {
+            /* Windows */
+          }
+        }
+      },
+    );
   });
 } else if (ACCEPTANCE && ADAPTER !== 'spawn') {
   describe('Real Claude Code acceptance', () => {

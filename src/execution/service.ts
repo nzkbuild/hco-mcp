@@ -17,6 +17,8 @@ import {
 } from '../state/execution-repository.js';
 import type { ExecutionRow } from '../state/execution-repository.js';
 import type { ClaudeCodeAdapter } from '../claude/adapter.js';
+import { runValidation } from '../validation/runner.js';
+import { getValidationProfile } from '../validation/profile.js';
 import { logDebug } from '../mcp/logging.js';
 
 // ─── Submit result ─────────────────────────────────────────────────────────
@@ -100,7 +102,6 @@ export class ExecutionService {
       logDebug(`ExecutionService.onExit: ${executionId} exitCode=${String(attempt.exitCode)}`);
 
       if (attempt.aborted) {
-        // Cancellation already handled by cancel() — no double transition
         return;
       }
       if (attempt.signal === 'awaiting_input') {
@@ -109,8 +110,13 @@ export class ExecutionService {
       }
       if (attempt.timedOut) {
         transitionToTimedOut(this.db, executionId);
-      } else if (attempt.exitCode === 0) {
+        return;
+      }
+      if (attempt.exitCode === 0) {
         transitionToCompleted(this.db, executionId, attempt.exitCode);
+        void this.runPostValidation(executionId, request, profile).catch((err: unknown) => {
+          logDebug(`ExecutionService.runPostValidation unhandled: ${String(err)}`);
+        });
       } else {
         transitionToFailed(
           this.db,
@@ -123,6 +129,50 @@ export class ExecutionService {
     this.adapter.launch(running, profile, onExit);
 
     return getExecution(this.db, executionId) ?? running;
+  }
+
+  private async runPostValidation(
+    executionId: string,
+    request: ExecutionRequestV1,
+    profile: ExecutionProfileV1,
+  ): Promise<void> {
+    if (!profile.validation_defaults?.post_execution) return;
+    const validationProfile = request.claude_config.validation_profile;
+    if (!validationProfile) return;
+
+    try {
+      const profile = getValidationProfile(validationProfile);
+      const cwd = request.repository.path;
+      const result = await runValidation(profile, cwd);
+
+      this.db
+        .prepare('INSERT INTO execution_events (execution_id, type, payload) VALUES (?, ?, ?)')
+        .run(
+          executionId,
+          'validation_ran',
+          JSON.stringify({
+            profile: result.profile,
+            passed: result.passed,
+            command_results: result.results.map((r) => ({
+              command: r.command,
+              args: r.args,
+              exitCode: r.exitCode,
+              stdout: r.stdout.slice(0, 1024),
+              stderr: r.stderr.slice(0, 1024),
+              timedOut: r.timedOut,
+              error: r.error,
+            })),
+            error: result.error,
+          }),
+        );
+
+      if (!result.passed) {
+        transitionToFailed(this.db, executionId, result.error ?? 'Validation failed');
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      transitionToFailed(this.db, executionId, `Validation error: ${msg}`);
+    }
   }
 
   cancel(executionId: string, reason?: string): ExecutionRow {
@@ -188,6 +238,26 @@ export class ExecutionService {
       }
     }
 
+    const validationEvent = events.find((e) => e.type === 'validation_ran');
+    let validationResults: Record<string, unknown>[] | undefined;
+    if (validationEvent) {
+      try {
+        const payload = JSON.parse(validationEvent.payload as string) as Record<string, unknown>;
+        const profile = typeof payload.profile === 'string' ? payload.profile : '';
+        const passed = typeof payload.passed === 'boolean' ? payload.passed : false;
+        const commandResults = Array.isArray(payload.command_results)
+          ? (payload.command_results as Record<string, unknown>[]).map((cr) => ({
+              command: typeof cr.command === 'string' ? cr.command : '',
+              exit_code: typeof cr.exitCode === 'number' ? cr.exitCode : -1,
+              passed: cr.exitCode === 0,
+            }))
+          : [];
+        validationResults = [{ profile, passed, command_results: commandResults }];
+      } catch {
+        // ignore parse errors
+      }
+    }
+
     return ExecutionResultV1.parse({
       execution_id: exec.executionId,
       status: exec.status,
@@ -197,6 +267,7 @@ export class ExecutionService {
         duration_ms: 0,
         artifacts: [],
       },
+      validation_results: validationResults,
       submitted_at: exec.createdAt,
       started_at: startedEvent?.recorded_at ?? null,
       finished_at: finishedEvent?.recorded_at ?? exec.updatedAt,

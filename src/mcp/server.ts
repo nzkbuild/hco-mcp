@@ -32,7 +32,8 @@ import { ExecutionService } from '../execution/service.js';
 import { ExecutionRequestV1 } from '../contract/execution-request.js';
 import { ExecutionProfileV1 } from '../contract/execution-profile.js';
 import { PolicySnapshotV1 } from '../contract/policy-snapshot.js';
-import { FakeClaudeCodeAdapter } from '../claude/adapter.js';
+import { FakeClaudeCodeAdapter, SpawnAdapter } from '../claude/adapter.js';
+import type { ClaudeCodeAdapter } from '../claude/adapter.js';
 
 // ─── Re-export for tests ─────────────────────────────────────────────────────
 
@@ -459,6 +460,90 @@ export function handleExecutionResult(args: {
   }
 }
 
+// ─── Health handler ──────────────────────────────────────────────────────────
+
+export function handleHealth(): McpSuccessResponse {
+  const migrationCount = (
+    state.db.prepare('SELECT MAX(version) AS v FROM schema_version').get() as { v: number }
+  ).v;
+  const dbSize = (
+    state.db
+      .prepare('SELECT page_count * page_size AS size FROM pragma_page_count(), pragma_page_size()')
+      .get() as { size: number }
+  ).size;
+
+  const execCounts: Record<string, number> = {};
+  const rows = state.db
+    .prepare('SELECT status, COUNT(*) AS c FROM executions GROUP BY status')
+    .all() as { status: string; c: number }[];
+  let total = 0;
+  let terminal = 0;
+  for (const r of rows) {
+    execCounts[r.status] = r.c;
+    total += r.c;
+    if (['completed', 'failed', 'cancelled', 'timed_out', 'archived'].includes(r.status)) {
+      terminal += r.c;
+    }
+  }
+
+  const jobCount = (state.db.prepare('SELECT COUNT(*) AS c FROM jobs').get() as { c: number }).c;
+  const sessionCount = (
+    state.db.prepare('SELECT COUNT(*) AS c FROM sessions').get() as { c: number }
+  ).c;
+
+  return success({
+    status: 'operational',
+    uptime: process.uptime(),
+    db: {
+      size_bytes: dbSize,
+      schema_version: migrationCount,
+      migration_count: migrationCount,
+    },
+    executions: {
+      total,
+      accepted: execCounts.accepted ?? 0,
+      queued: execCounts.queued ?? 0,
+      running: execCounts.running ?? 0,
+      awaiting_input: execCounts.awaiting_input ?? 0,
+      terminal,
+    },
+    legacy: {
+      jobs_count: jobCount,
+      sessions_count: sessionCount,
+    },
+  });
+}
+
+// ─── Compatibility handler ───────────────────────────────────────────────────
+
+export function handleCompatibility(): McpSuccessResponse {
+  const legacyJobs = (
+    state.db
+      .prepare("SELECT COUNT(*) AS c FROM jobs WHERE status IN ('pending', 'running', 'paused')")
+      .get() as { c: number }
+  ).c;
+  const legacySessions = (
+    state.db.prepare('SELECT COUNT(*) AS c FROM claude_sessions').get() as { c: number }
+  ).c;
+  const warnings: string[] = [];
+  if (legacyJobs > 0) {
+    warnings.push(`${String(legacyJobs)} legacy jobs are still in non-terminal state`);
+  }
+  if (legacySessions > 0) {
+    warnings.push(`${String(legacySessions)} legacy claude_sessions exist`);
+  }
+  const canMigrate = legacyJobs === 0;
+  const action = canMigrate ? 'migrate' : 'wait';
+
+  return success({
+    legacy_jobs_pending: legacyJobs,
+    legacy_sessions_active: legacySessions,
+    can_migrate: canMigrate,
+    warnings,
+    recommended_action: action,
+  });
+}
+
 // ─── Execution continue handler ───────────────────────────────────────────────
 
 export function handleExecutionContinue(args: {
@@ -510,7 +595,14 @@ function createServerState(opts: HcoConfig | AppContext | McpOptionsWithLauncher
     launcher = undefined;
   }
 
-  state = { db, launcher, executionService: new ExecutionService(db, new FakeClaudeCodeAdapter()) };
+  state = { db, launcher, executionService: new ExecutionService(db, createAdapter()) };
+}
+
+function createAdapter(): ClaudeCodeAdapter {
+  if (process.env.HCO_ADAPTER === 'spawn') {
+    return new SpawnAdapter();
+  }
+  return new FakeClaudeCodeAdapter();
 }
 
 function registerAllTools(server: McpServer): void {
@@ -780,6 +872,29 @@ function registerAllTools(server: McpServer): void {
     },
     (args) => ({
       content: [{ type: 'text', text: JSON.stringify(handleExecutionContinue(args)) }],
+    }),
+  );
+
+  // ─── Health + compatibility tools ────────────────────────────────────────
+
+  server.registerTool(
+    'hco_health',
+    {
+      description: 'Get HCO system health: DB stats, execution counts, and uptime.',
+    },
+    () => ({
+      content: [{ type: 'text', text: JSON.stringify(handleHealth()) }],
+    }),
+  );
+
+  server.registerTool(
+    'hco_compatibility',
+    {
+      description:
+        'Check readiness for v1-to-v2 migration. Reports legacy jobs, sessions, and recommended action.',
+    },
+    () => ({
+      content: [{ type: 'text', text: JSON.stringify(handleCompatibility()) }],
     }),
   );
 }

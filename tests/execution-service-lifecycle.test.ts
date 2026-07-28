@@ -3,10 +3,7 @@ import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import Database from 'better-sqlite3';
 import { openDb } from '../src/state/db.js';
-import {
-  ExecutionService,
-  ExecutionLifecycleError,
-} from '../src/execution/service.js';
+import { ExecutionService, ExecutionLifecycleError } from '../src/execution/service.js';
 import { FakeClaudeCodeAdapter } from '../src/claude/adapter.js';
 import type { ClaudeCodeAdapter, ProcessAttempt } from '../src/claude/adapter.js';
 import { ExecutionRequestV1 } from '../src/contract/execution-request.js';
@@ -129,10 +126,7 @@ describe('ExecutionService lifecycle', () => {
     service.start(result.execution_id);
     service.cancel(result.execution_id);
 
-    assert.throws(
-      () => service.cancel(result.execution_id),
-      ExecutionLifecycleError,
-    );
+    assert.throws(() => service.cancel(result.execution_id), ExecutionLifecycleError);
   });
 
   it('getStatus returns current execution row', () => {

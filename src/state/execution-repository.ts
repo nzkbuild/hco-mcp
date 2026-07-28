@@ -190,7 +190,7 @@ const VALID_TRANSITIONS: Record<string, readonly string[]> = {
   queued: ['running', 'cancelled'],
   running: ['completed', 'failed', 'cancelled', 'timed_out', 'awaiting_input'],
   awaiting_input: ['running', 'cancelled'],
-  completed: ['archived'],
+  completed: ['archived', 'failed'],
   failed: ['archived'],
   cancelled: ['archived'],
   timed_out: ['archived'],

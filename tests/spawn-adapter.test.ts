@@ -37,11 +37,18 @@ class CaptureRunner implements ProcessRunner {
     };
   }
 
-  run(command: string, args: string[], opts: RunOptions, onExit: (r: RunResult) => void): ChildProcess {
+  run(
+    command: string,
+    args: string[],
+    opts: RunOptions,
+    onExit: (r: RunResult) => void,
+  ): ChildProcess {
     this.lastCommand = command;
     this.lastArgs = args;
     this.lastRunOpts = opts;
-    setImmediate(() => { onExit(this.result); });
+    setImmediate(() => {
+      onExit(this.result);
+    });
     return { pid: 9999 } as ChildProcess;
   }
 
@@ -103,14 +110,22 @@ function profileWithoutBinary() {
 function validPolicy(repoPath: string) {
   return PolicySnapshotV1.parse({
     repository_boundary: { owner: 'test', repo: 'test', local_path: repoPath },
-    permission_limits: { allowed_tools: ['Read', 'Write', 'Edit', 'Bash'], deny_shell_access: true },
+    permission_limits: {
+      allowed_tools: ['Read', 'Write', 'Edit', 'Bash'],
+      deny_shell_access: true,
+    },
     timeout_ceiling_ms: 600_000,
     max_concurrency: 4,
     approval_required: true,
   });
 }
 
-function persistedExecution(db: Database.Database, execRequest: ReturnType<typeof validRequest>, profile: ReturnType<typeof profileWithBinary>, policy: ReturnType<typeof validPolicy>): ExecutionRow {
+function persistedExecution(
+  db: Database.Database,
+  execRequest: ReturnType<typeof validRequest>,
+  profile: ReturnType<typeof profileWithBinary>,
+  policy: ReturnType<typeof validPolicy>,
+): ExecutionRow {
   return createExecution(db, execRequest, profile, policy);
 }
 
@@ -136,7 +151,12 @@ describe('SpawnAdapter repository path resolution', () => {
 
   it('uses validated repository path as cwd', async () => {
     const { runner: r, adapter: a } = freshState();
-    const exec = persistedExecution(db, validRequest(repoPath), profileWithBinary('echo'), validPolicy(repoPath));
+    const exec = persistedExecution(
+      db,
+      validRequest(repoPath),
+      profileWithBinary('echo'),
+      validPolicy(repoPath),
+    );
 
     await new Promise<ProcessAttempt>((resolve) => {
       a.launch(exec, profileWithBinary('echo'), (attempt) => {
@@ -158,7 +178,9 @@ describe('SpawnAdapter repository path resolution', () => {
     );
 
     const attempt = await new Promise<ProcessAttempt>((resolve) => {
-      a.launch(exec, profileWithBinary('echo'), (att) => { resolve(att); });
+      a.launch(exec, profileWithBinary('echo'), (att) => {
+        resolve(att);
+      });
     });
 
     assert.equal(attempt.signal, 'error');
@@ -169,10 +191,17 @@ describe('SpawnAdapter repository path resolution', () => {
   it('produces error signal for file path instead of directory', async () => {
     const { runner: r, adapter: a } = freshState();
     const filePath = join(repoPath, 'README.md');
-    const exec = persistedExecution(db, validRequest(filePath), profileWithBinary('echo'), validPolicy(filePath));
+    const exec = persistedExecution(
+      db,
+      validRequest(filePath),
+      profileWithBinary('echo'),
+      validPolicy(filePath),
+    );
 
     const attempt = await new Promise<ProcessAttempt>((resolve) => {
-      a.launch(exec, profileWithBinary('echo'), (att) => { resolve(att); });
+      a.launch(exec, profileWithBinary('echo'), (att) => {
+        resolve(att);
+      });
     });
 
     assert.equal(attempt.signal, 'error');
@@ -203,13 +232,20 @@ describe('SpawnAdapter binary precedence', () => {
 
   it('profile binary wins over CLAUDE_BIN env', async () => {
     const { runner: r, adapter: a } = freshState();
-    const exec = persistedExecution(db, validRequest(repoPath), profileWithBinary('/custom/bin/claude'), validPolicy(repoPath));
+    const exec = persistedExecution(
+      db,
+      validRequest(repoPath),
+      profileWithBinary('/custom/bin/claude'),
+      validPolicy(repoPath),
+    );
 
     const prev = process.env.CLAUDE_BIN;
     process.env.CLAUDE_BIN = '/usr/bin/claude';
     try {
       await new Promise<ProcessAttempt>((resolve) => {
-        a.launch(exec, profileWithBinary('/custom/bin/claude'), (att) => { resolve(att); });
+        a.launch(exec, profileWithBinary('/custom/bin/claude'), (att) => {
+          resolve(att);
+        });
       });
     } finally {
       if (prev !== undefined) process.env.CLAUDE_BIN = prev;
@@ -221,13 +257,20 @@ describe('SpawnAdapter binary precedence', () => {
 
   it('CLAUDE_BIN wins when profile has no binary', async () => {
     const { runner: r, adapter: a } = freshState();
-    const exec = persistedExecution(db, validRequest(repoPath), profileWithoutBinary(), validPolicy(repoPath));
+    const exec = persistedExecution(
+      db,
+      validRequest(repoPath),
+      profileWithoutBinary(),
+      validPolicy(repoPath),
+    );
 
     const prev = process.env.CLAUDE_BIN;
     process.env.CLAUDE_BIN = '/env/bin/claude';
     try {
       await new Promise<ProcessAttempt>((resolve) => {
-        a.launch(exec, profileWithoutBinary(), (att) => { resolve(att); });
+        a.launch(exec, profileWithoutBinary(), (att) => {
+          resolve(att);
+        });
       });
     } finally {
       if (prev !== undefined) process.env.CLAUDE_BIN = prev;
@@ -239,13 +282,20 @@ describe('SpawnAdapter binary precedence', () => {
 
   it('defaults to "claude" when neither profile nor CLAUDE_BIN set', async () => {
     const { runner: r, adapter: a } = freshState();
-    const exec = persistedExecution(db, validRequest(repoPath), profileWithoutBinary(), validPolicy(repoPath));
+    const exec = persistedExecution(
+      db,
+      validRequest(repoPath),
+      profileWithoutBinary(),
+      validPolicy(repoPath),
+    );
 
     const prev = process.env.CLAUDE_BIN;
     delete process.env.CLAUDE_BIN;
     try {
       await new Promise<ProcessAttempt>((resolve) => {
-        a.launch(exec, profileWithoutBinary(), (att) => { resolve(att); });
+        a.launch(exec, profileWithoutBinary(), (att) => {
+          resolve(att);
+        });
       });
     } finally {
       if (prev !== undefined) process.env.CLAUDE_BIN = prev;

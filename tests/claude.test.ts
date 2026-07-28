@@ -245,44 +245,55 @@ describe('Claude repoPath validation', () => {
   it('validateRepoPath rejects file-not-directory path', async () => {
     const { validateRepoPath } = await import('../src/claude/launcher.js');
 
-    // /etc/hostname is a standard file on Linux
-    assert.throws(
-      () => validateRepoPath('/etc/hostname'),
-      (err: Error) =>
-        err instanceof Error &&
-        err.name === 'InvalidRepoPathError' &&
-        err.message.includes('not a directory'),
-    );
+    // Create a temp file (not a directory) to test rejection
+    const tempFile = resolve(TEST_REPO_DIR, 'a-file.txt');
+    writeFileSync(tempFile, 'content');
+
+    try {
+      assert.throws(
+        () => validateRepoPath(tempFile),
+        (err: Error) =>
+          err instanceof Error &&
+          err.name === 'InvalidRepoPathError' &&
+          err.message.includes('not a directory'),
+      );
+    } finally {
+      rmSync(tempFile, { force: true });
+    }
   });
 
-  it('validateRepoPath rejects symlink traversal', async () => {
-    const realDir = resolve(TEST_REPO_DIR, 'real');
-    const linkDir = resolve(TEST_REPO_DIR, 'link');
-    mkdirSync(realDir, { recursive: true });
-    writeFileSync(resolve(realDir, 'test.txt'), 'data');
-    symlinkSync(realDir, linkDir);
+  it(
+    'validateRepoPath rejects symlink traversal',
+    { skip: process.platform === 'win32' ? 'symlinks require admin on Windows' : false },
+    async () => {
+      const realDir = resolve(TEST_REPO_DIR, 'real');
+      const linkDir = resolve(TEST_REPO_DIR, 'link');
+      mkdirSync(realDir, { recursive: true });
+      writeFileSync(resolve(realDir, 'test.txt'), 'data');
+      symlinkSync(realDir, linkDir);
 
-    // validateRepoPath rejects symlinks — lstatSync catches it as "not a directory"
-    // before even reaching the realpath mismatch check.
-    const { validateRepoPath } = await import('../src/claude/launcher.js');
+      // validateRepoPath rejects symlinks — lstatSync catches it as "not a directory"
+      // before even reaching the realpath mismatch check.
+      const { validateRepoPath } = await import('../src/claude/launcher.js');
 
-    assert.throws(
-      () => validateRepoPath(linkDir),
-      (err: Error) =>
-        err instanceof Error &&
-        err.name === 'InvalidRepoPathError' &&
-        err.message.includes('not a directory'),
-    );
+      assert.throws(
+        () => validateRepoPath(linkDir),
+        (err: Error) =>
+          err instanceof Error &&
+          err.name === 'InvalidRepoPathError' &&
+          err.message.includes('not a directory'),
+      );
 
-    // Assert the symlink resolution is indeed different
-    const real = realpathSync(linkDir);
-    const resolved = resolve(linkDir);
-    assert.notEqual(real, resolved, 'symlink should resolve differently');
+      // Assert the symlink resolution is indeed different
+      const real = realpathSync(linkDir);
+      const resolved = resolve(linkDir);
+      assert.notEqual(real, resolved, 'symlink should resolve differently');
 
-    // Cleanup
-    rmSync(linkDir, { recursive: true, force: true });
-    rmSync(realDir, { recursive: true, force: true });
-  });
+      // Cleanup
+      rmSync(linkDir, { recursive: true, force: true });
+      rmSync(realDir, { recursive: true, force: true });
+    },
+  );
 
   it('validateRepoPath accepts valid absolute directory', async () => {
     const { validateRepoPath } = await import('../src/claude/launcher.js');

@@ -231,8 +231,8 @@ export class SpawnAdapter implements ClaudeCodeAdapter {
       attempt.finishedAt = new Date().toISOString().replace('T', ' ').slice(0, 19);
       attempt.exitCode = -1;
       setImmediate(() => {
-	        onExit(attempt);
-	      });
+        onExit(attempt);
+      });
       return attempt;
     }
 
@@ -242,8 +242,8 @@ export class SpawnAdapter implements ClaudeCodeAdapter {
       attempt.finishedAt = new Date().toISOString().replace('T', ' ').slice(0, 19);
       attempt.exitCode = -1;
       setImmediate(() => {
-	        onExit(attempt);
-	      });
+        onExit(attempt);
+      });
       return attempt;
     }
 
@@ -258,8 +258,8 @@ export class SpawnAdapter implements ClaudeCodeAdapter {
       attempt.finishedAt = new Date().toISOString().replace('T', ' ').slice(0, 19);
       attempt.exitCode = -1;
       setImmediate(() => {
-	        onExit(attempt);
-	      });
+        onExit(attempt);
+      });
       return attempt;
     }
 
@@ -281,8 +281,8 @@ export class SpawnAdapter implements ClaudeCodeAdapter {
         attempt.finishedAt = new Date().toISOString().replace('T', ' ').slice(0, 19);
         attempt.exitCode = -1;
         setImmediate(() => {
-	        onExit(attempt);
-	      });
+          onExit(attempt);
+        });
         return attempt;
       }
     }

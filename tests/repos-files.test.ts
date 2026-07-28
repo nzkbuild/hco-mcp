@@ -55,34 +55,42 @@ describe('repository file inspection', () => {
     await assert.rejects(() => getRepoFile(repoRoot, 'nonexistent.txt'), /not found/);
   });
 
-  it('rejects traversal with symlink escape', async () => {
-    const linkPath = join(repoRoot, 'escape');
-    await symlink('/etc', linkPath, 'dir');
+  it(
+    'rejects traversal with symlink escape',
+    { skip: process.platform === 'win32' ? 'symlinks require admin on Windows' : false },
+    async () => {
+      const linkPath = join(repoRoot, 'escape');
+      await symlink('/etc', linkPath, 'dir');
 
-    try {
-      await assert.rejects(
-        () => getRepoFile(repoRoot, 'escape/passwd'),
-        /must not contain symbolic links/,
-      );
-    } finally {
-      await rm(linkPath, { recursive: true, force: true });
-    }
-  });
+      try {
+        await assert.rejects(
+          () => getRepoFile(repoRoot, 'escape/passwd'),
+          /must not contain symbolic links/,
+        );
+      } finally {
+        await rm(linkPath, { recursive: true, force: true });
+      }
+    },
+  );
 
-  it('rejects internal symlink pointing inside repo', async () => {
-    const linkPath = join(repoRoot, 'shortcut');
-    const target = join(repoRoot, 'hello.txt');
-    await symlink(target, linkPath, 'file');
+  it(
+    'rejects internal symlink pointing inside repo',
+    { skip: process.platform === 'win32' ? 'symlinks require admin on Windows' : false },
+    async () => {
+      const linkPath = join(repoRoot, 'shortcut');
+      const target = join(repoRoot, 'hello.txt');
+      await symlink(target, linkPath, 'file');
 
-    try {
-      await assert.rejects(
-        () => getRepoFile(repoRoot, 'shortcut'),
-        /must not contain symbolic links/,
-      );
-    } finally {
-      await rm(linkPath, { recursive: true, force: true });
-    }
-  });
+      try {
+        await assert.rejects(
+          () => getRepoFile(repoRoot, 'shortcut'),
+          /must not contain symbolic links/,
+        );
+      } finally {
+        await rm(linkPath, { recursive: true, force: true });
+      }
+    },
+  );
 
   it('rejects a directory', async () => {
     await assert.rejects(() => getRepoFile(repoRoot, 'sub'), /not a regular file/);

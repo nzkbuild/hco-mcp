@@ -1,8 +1,17 @@
 import { readFile, realpath } from 'node:fs/promises';
-import { isAbsolute, resolve, normalize, join } from 'node:path';
+import { isAbsolute, resolve, normalize, join, sep } from 'node:path';
 import { lstat, access } from 'node:fs/promises';
 
 const MAX_FILE_BYTES = 65536;
+
+function isPathInside(child: string, parent: string): boolean {
+  const nChild = normalize(child);
+  const nParent = normalize(parent) + sep;
+  if (process.platform === 'win32') {
+    return nChild.toLowerCase().startsWith(nParent.toLowerCase());
+  }
+  return nChild.startsWith(nParent);
+}
 
 export async function getRepoFile(repoPath: string, relativePath: string): Promise<string> {
   if (!isAbsolute(repoPath)) {
@@ -27,9 +36,7 @@ export async function getRepoFile(repoPath: string, relativePath: string): Promi
   const fullPath = resolve(resolvedRepo, relativePath);
 
   // Confirm fullPath is still inside resolvedRepo after resolution
-  const normalizedFull = normalize(fullPath);
-  const normalizedRepo = normalize(resolvedRepo) + '/';
-  if (!normalizedFull.startsWith(normalizedRepo)) {
+  if (!isPathInside(fullPath, resolvedRepo)) {
     throw new Error('file path escapes the repository');
   }
 
@@ -77,7 +84,8 @@ export async function getRepoFile(repoPath: string, relativePath: string): Promi
     throw new Error('file not found');
   }
 
-  if (!resolvedFile.startsWith(normalizedRepo)) {
+  // Re-check real
+  if (!isPathInside(resolvedFile, resolvedRepo)) {
     throw new Error('file path escapes the repository');
   }
 

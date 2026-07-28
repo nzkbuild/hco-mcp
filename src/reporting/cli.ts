@@ -1,4 +1,4 @@
-import { formatTelegramReport } from '../validation/telegram.js';
+import { formatTelegramReport } from '../integrations/telegram.js';
 
 export interface CliReportInput {
   kind: string;

@@ -33,51 +33,57 @@ describe('normalizeSocketPath', () => {
 });
 
 describe('sendNotify via real socket', () => {
-  it('sends notification through NOTIFY_SOCKET using normalizeSocketPath', async () => {
-    // Use abstract socket — systemd convention
-    const name = `\0hco-test-notify`;
+  it(
+    'sends notification through NOTIFY_SOCKET using normalizeSocketPath',
+    {
+      skip: process.platform === 'win32' ? 'Unix sockets not available on Windows' : false,
+    },
+    async () => {
+      // Use abstract socket — systemd convention
+      const name = `\0hco-test-notify`;
 
-    const received = await new Promise<string>((resolve, reject) => {
-      const server = createServer((c) => {
-        c.on('data', (data: Buffer) => {
-          c.destroy();
+      const received = await new Promise<string>((resolve, reject) => {
+        const server = createServer((c) => {
+          c.on('data', (data: Buffer) => {
+            c.destroy();
+            server.close();
+            clearTimeout(timeout);
+            process.env.NOTIFY_SOCKET = '';
+            resolve(data.toString());
+          });
+          c.on('error', () => {
+            c.destroy();
+            server.close();
+            clearTimeout(timeout);
+            process.env.NOTIFY_SOCKET = '';
+            reject(new Error('connection error'));
+          });
+        });
+        server.on('error', () => {
           server.close();
           clearTimeout(timeout);
           process.env.NOTIFY_SOCKET = '';
-          resolve(data.toString());
+          reject(new Error('server error'));
         });
-        c.on('error', () => {
-          c.destroy();
+
+        const timeout = setTimeout(() => {
           server.close();
-          clearTimeout(timeout);
           process.env.NOTIFY_SOCKET = '';
-          reject(new Error('connection error'));
+          reject(new Error('timeout'));
+        }, 2000);
+
+        server.listen({ path: name }, () => {
+          // Expose as systemd @-notation
+          process.env.NOTIFY_SOCKET = '@hco-test-notify';
+          const notifier = createSystemdNotifier();
+          notifier.notifyReady('HCO operational');
         });
       });
-      server.on('error', () => {
-        server.close();
-        clearTimeout(timeout);
-        process.env.NOTIFY_SOCKET = '';
-        reject(new Error('server error'));
-      });
 
-      const timeout = setTimeout(() => {
-        server.close();
-        process.env.NOTIFY_SOCKET = '';
-        reject(new Error('timeout'));
-      }, 2000);
-
-      server.listen({ path: name }, () => {
-        // Expose as systemd @-notation
-        process.env.NOTIFY_SOCKET = '@hco-test-notify';
-        const notifier = createSystemdNotifier();
-        notifier.notifyReady('HCO operational');
-      });
-    });
-
-    assert.ok(received.includes('READY=1'));
-    assert.ok(received.includes('STATUS=HCO operational'));
-  });
+      assert.ok(received.includes('READY=1'));
+      assert.ok(received.includes('STATUS=HCO operational'));
+    },
+  );
 });
 
 describe('Daemon notifier', () => {
@@ -137,42 +143,57 @@ describe('DaemonHealth', () => {
   });
 });
 
-describe('Daemon startup/shutdown with mock notifier', () => {
-  it('startDaemon signals readiness and handles SIGTERM', async () => {
-    rmSync(TEST_DIR, { recursive: true, force: true });
+describe(
+  'Daemon startup/shutdown with mock notifier',
+  {
+    skip: process.platform === 'win32' ? 'POSIX signal handling not available on Windows' : false,
+  },
+  () => {
+    it('startDaemon signals readiness and handles SIGTERM', async () => {
+      rmSync(TEST_DIR, { recursive: true, force: true });
 
-    process.env.HCO_DATA_DIR = TEST_DIR;
-    const ctx = createContext();
+      process.env.HCO_DATA_DIR = TEST_DIR;
+      const ctx = createContext();
 
-    const notifications: string[] = [];
+      const notifications: string[] = [];
 
-    const mockNotifier: DaemonNotifier = {
-      notifyReady(status: string): void {
-        notifications.push(`ready: ${status}`);
-      },
-      notifyStopping(status: string): void {
-        notifications.push(`stopping: ${status}`);
-      },
-    };
+      const mockNotifier: DaemonNotifier = {
+        notifyReady(status: string): void {
+          notifications.push(`ready: ${status}`);
+        },
+        notifyStopping(status: string): void {
+          notifications.push(`stopping: ${status}`);
+        },
+      };
 
-    // Fire SIGTERM after a short delay to trigger shutdown
-    const timer = setTimeout(() => {
-      process.kill(process.pid, 'SIGTERM');
-    }, 300);
+      // Fire SIGTERM after a short delay to trigger shutdown
+      const timer = setTimeout(() => {
+        process.kill(process.pid, 'SIGTERM');
+      }, 300);
 
-    await startDaemon(ctx, { notifier: mockNotifier });
+      await startDaemon(ctx, { notifier: mockNotifier });
 
-    clearTimeout(timer);
-    rmSync(TEST_DIR, { recursive: true, force: true });
-    delete process.env.HCO_DATA_DIR;
+      clearTimeout(timer);
+      try {
+        closeContext(ctx);
+      } catch {
+        /* context may already be closed */
+      }
+      try {
+        rmSync(TEST_DIR, { recursive: true, force: true });
+      } catch {
+        /* Windows WAL lock */
+      }
+      delete process.env.HCO_DATA_DIR;
 
-    assert.ok(
-      notifications.some((n) => n.startsWith('ready:')),
-      'notifier received ready',
-    );
-    assert.ok(
-      notifications.some((n) => n.startsWith('stopping:')),
-      'notifier received stopping',
-    );
-  });
-});
+      assert.ok(
+        notifications.some((n) => n.startsWith('ready:')),
+        'notifier received ready',
+      );
+      assert.ok(
+        notifications.some((n) => n.startsWith('stopping:')),
+        'notifier received stopping',
+      );
+    });
+  },
+);

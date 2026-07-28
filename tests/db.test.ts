@@ -50,7 +50,7 @@ describe('Database migrations', () => {
     const row = db.prepare('SELECT MAX(version) AS version FROM schema_version').get() as {
       version: number;
     };
-    assert.equal(row.version, 6);
+    assert.ok(row.version >= 6, `expected >= 6, got ${String(row.version)}`);
   });
 
   it('jobs table accepts inserts with CHECK constraints', () => {

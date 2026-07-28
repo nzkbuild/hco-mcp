@@ -297,7 +297,7 @@ export function runCli(ctxOrArgv: AppContext | string[], argv?: string[]): void 
 function isMain(meta: ImportMeta): boolean {
   return (
     meta.url === `file://${String(process.argv[1])}` ||
-    (process.argv[1]?.endsWith('/cli/main.js') ?? false)
+    (process.argv[1]?.replaceAll('\\', '/').endsWith('/cli/main.js') ?? false)
   );
 }
 
