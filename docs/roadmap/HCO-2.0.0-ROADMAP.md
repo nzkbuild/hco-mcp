@@ -12,18 +12,18 @@ Target version: 2.0.0
 
 These decisions are finalized and supersede any previous guidance:
 
-| # | Decision | Detail |
-|---|----------|--------|
-| 1 | Idempotency key | Optional field. Hermes provides it when it knows the logical task identity. HCO generates a random unique key when absent. Do NOT deduplicate using a deterministic hash of prompt content. |
-| 2 | Provider profiles | Reference environment variables or external secret sources. Raw API keys and provider secrets must NOT be stored in SQLite or passed through MCP. |
-| 3 | Fake Claude adapter | Required for deterministic tests in Phase 1–3, but NOT sufficient for the HCO 2.0.0 release gate. Real Claude Code acceptance tests remain mandatory. |
-| 4 | Legacy jobs and daemon | Remain temporarily for migration compatibility. Freeze new development against the legacy job model. The daemon must eventually consume the canonical `ExecutionService`. |
-| 5 | `claude_sessions` coexistence | Existing data may coexist during migration, but new `executions` become the authoritative source of truth. Do NOT maintain two independent active execution systems. |
-| 6 | Runtime stack | Node.js 22+, ESM, better-sqlite3, SQLite WAL. Stdio is the initial required MCP transport, but domain architecture must NOT be coupled to stdio-only assumptions. |
-| 7 | Artifact size limits | Replace the single 256 KiB cap with four separate limits: inline MCP response limit, event chunk limit, individual artifact limit, total per-execution artifact limit. Large output must be persisted and referenced. Defaults must be configurable and conservative. |
-| 8 | `awaiting_input` | Support in domain model and fake-adapter tests. Real Claude Code support requires a structured or versioned adapter signal. Stderr pattern matching may exist only as an explicitly documented fallback, not the primary mechanism. |
-| 9 | `hco_task_start` | Deprecated. Route through a compatibility boundary alongside `hco_session_start`. Do not add new features to either. |
-| 10 | Telegram | Move outside HCO execution core under an optional integration boundary, or remove if unused. |
+| #   | Decision                      | Detail                                                                                                                                                                                                                                                                |
+| --- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Idempotency key               | Optional field. Hermes provides it when it knows the logical task identity. HCO generates a random unique key when absent. Do NOT deduplicate using a deterministic hash of prompt content.                                                                           |
+| 2   | Provider profiles             | Reference environment variables or external secret sources. Raw API keys and provider secrets must NOT be stored in SQLite or passed through MCP.                                                                                                                     |
+| 3   | Fake Claude adapter           | Required for deterministic tests in Phase 1–3, but NOT sufficient for the HCO 2.0.0 release gate. Real Claude Code acceptance tests remain mandatory.                                                                                                                 |
+| 4   | Legacy jobs and daemon        | Remain temporarily for migration compatibility. Freeze new development against the legacy job model. The daemon must eventually consume the canonical `ExecutionService`.                                                                                             |
+| 5   | `claude_sessions` coexistence | Existing data may coexist during migration, but new `executions` become the authoritative source of truth. Do NOT maintain two independent active execution systems.                                                                                                  |
+| 6   | Runtime stack                 | Node.js 22+, ESM, better-sqlite3, SQLite WAL. Stdio is the initial required MCP transport, but domain architecture must NOT be coupled to stdio-only assumptions.                                                                                                     |
+| 7   | Artifact size limits          | Replace the single 256 KiB cap with four separate limits: inline MCP response limit, event chunk limit, individual artifact limit, total per-execution artifact limit. Large output must be persisted and referenced. Defaults must be configurable and conservative. |
+| 8   | `awaiting_input`              | Support in domain model and fake-adapter tests. Real Claude Code support requires a structured or versioned adapter signal. Stderr pattern matching may exist only as an explicitly documented fallback, not the primary mechanism.                                   |
+| 9   | `hco_task_start`              | Deprecated. Route through a compatibility boundary alongside `hco_session_start`. Do not add new features to either.                                                                                                                                                  |
+| 10  | Telegram                      | Move outside HCO execution core under an optional integration boundary, or remove if unused.                                                                                                                                                                          |
 
 ---
 
@@ -31,68 +31,68 @@ These decisions are finalized and supersede any previous guidance:
 
 ### Aligned
 
-| Component | Location | Notes |
-|-----------|----------|-------|
-| SQLite persistence with WAL, migrations, FK pragmas | `src/state/db.ts` | Migrations v1–v6, append-only triggers, schema version tracking |
-| `claude_sessions` state machine | `src/claude/session.ts` | `start → running → exited/failed/stopped → archived`, validated transitions |
-| Append-only `session_events` table | `src/state/db.ts` (v4) | UPDATE/DELETE triggers enforce immutability |
-| `ProcessRunner` interface + `SpawnRunner` | `src/claude/runner.ts` | Output capture to files, timeout vs abort distinction, stream durability |
-| Repo path validation | `src/claude/launcher.ts` | Absolute path, exists, is directory, rejects symlink traversal, resolves realpath |
-| Environment filtering | `src/claude/launcher.ts` | Only whitelisted env keys reach child process |
-| Secret sanitization | `src/mcp/errors.ts` | Regex-based redaction of API keys, tokens, bearer auth |
-| Bounded input validation (Zod) | `src/mcp/server.ts`, `src/jobs/service.ts` | Max lengths, JSON-serializability checks |
-| Lease-based job claiming | `src/jobs/service.ts` | `claimJob`/`releaseExpiredJobs`/`renewJobLease` with worker ownership |
-| Config schema | `src/config/schema.ts` | Allowlist, authority policy, Claude bridge config |
-| Safe file read with traversal protection | `src/repos/files.ts` | Rejects `..`, symlinks, path escapes, enforces byte caps |
+| Component                                           | Location                                   | Notes                                                                             |
+| --------------------------------------------------- | ------------------------------------------ | --------------------------------------------------------------------------------- |
+| SQLite persistence with WAL, migrations, FK pragmas | `src/state/db.ts`                          | Migrations v1–v6, append-only triggers, schema version tracking                   |
+| `claude_sessions` state machine                     | `src/claude/session.ts`                    | `start → running → exited/failed/stopped → archived`, validated transitions       |
+| Append-only `session_events` table                  | `src/state/db.ts` (v4)                     | UPDATE/DELETE triggers enforce immutability                                       |
+| `ProcessRunner` interface + `SpawnRunner`           | `src/claude/runner.ts`                     | Output capture to files, timeout vs abort distinction, stream durability          |
+| Repo path validation                                | `src/claude/launcher.ts`                   | Absolute path, exists, is directory, rejects symlink traversal, resolves realpath |
+| Environment filtering                               | `src/claude/launcher.ts`                   | Only whitelisted env keys reach child process                                     |
+| Secret sanitization                                 | `src/mcp/errors.ts`                        | Regex-based redaction of API keys, tokens, bearer auth                            |
+| Bounded input validation (Zod)                      | `src/mcp/server.ts`, `src/jobs/service.ts` | Max lengths, JSON-serializability checks                                          |
+| Lease-based job claiming                            | `src/jobs/service.ts`                      | `claimJob`/`releaseExpiredJobs`/`renewJobLease` with worker ownership             |
+| Config schema                                       | `src/config/schema.ts`                     | Allowlist, authority policy, Claude bridge config                                 |
+| Safe file read with traversal protection            | `src/repos/files.ts`                       | Rejects `..`, symlinks, path escapes, enforces byte caps                          |
 
 ### Partially Aligned
 
-| Component | Issue | Fix direction |
-|-----------|-------|---------------|
-| MCP tool handlers | `handleSessionStart()` creates DB records and spawns processes directly — no intermediate execution service | Insert an `ExecutionService` layer between MCP handlers and Claude adapter |
-| `claude_sessions` table | Close to the `Execution` concept but mixed with process-attempt concerns (pid, output_path) | New `executions` table becomes authoritative; `claude_sessions` frozen for migration |
-| `hco_session_start` input | Takes `{owner, repo, repo_path, prompt}` only — no structured brief, no config profile, no validation request | Introduce `ExecutionRequest` with separate brief, config, and policy sections |
-| `session_events` table | Append-only but scoped to Claude session lifecycle, not full execution lifecycle | New `execution_events` table for execution lifecycle; existing `session_events` frozen |
-| Job daemon (`src/daemon/main.ts`) | Uses job queue as parallel execution path; independent from MCP session start | Freeze legacy daemon; new daemon consumes `ExecutionService` |
-| `hco_task_start` tool | Duplicates `hco_session_start` exactly | Route through compatibility boundary; deprecate alongside `hco_session_start` |
-| Session continuation | `checkpoint_path` column exists but no MCP tool for resume | Add `hco_execution_continue` tool in Phase 3 with proper continuation contract |
-| Config profiles | Single `claude` config section; no named profiles | Add `execution_profiles` and `provider_profiles` to config |
+| Component                         | Issue                                                                                                         | Fix direction                                                                          |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| MCP tool handlers                 | `handleSessionStart()` creates DB records and spawns processes directly — no intermediate execution service   | Insert an `ExecutionService` layer between MCP handlers and Claude adapter             |
+| `claude_sessions` table           | Close to the `Execution` concept but mixed with process-attempt concerns (pid, output_path)                   | New `executions` table becomes authoritative; `claude_sessions` frozen for migration   |
+| `hco_session_start` input         | Takes `{owner, repo, repo_path, prompt}` only — no structured brief, no config profile, no validation request | Introduce `ExecutionRequest` with separate brief, config, and policy sections          |
+| `session_events` table            | Append-only but scoped to Claude session lifecycle, not full execution lifecycle                              | New `execution_events` table for execution lifecycle; existing `session_events` frozen |
+| Job daemon (`src/daemon/main.ts`) | Uses job queue as parallel execution path; independent from MCP session start                                 | Freeze legacy daemon; new daemon consumes `ExecutionService`                           |
+| `hco_task_start` tool             | Duplicates `hco_session_start` exactly                                                                        | Route through compatibility boundary; deprecate alongside `hco_session_start`          |
+| Session continuation              | `checkpoint_path` column exists but no MCP tool for resume                                                    | Add `hco_execution_continue` tool in Phase 3 with proper continuation contract         |
+| Config profiles                   | Single `claude` config section; no named profiles                                                             | Add `execution_profiles` and `provider_profiles` to config                             |
 
 ### Misplaced
 
-| Component | Location | Should be |
-|-----------|----------|-----------|
-| Telegram report formatting | `src/validation/telegram.ts` | Move to `src/integrations/telegram.ts` under optional integration boundary, or remove if unused |
-| MCP client connection tracking | `sessions` table (migration v1) | Keep but rename to `mcp_connections` to avoid collision with Claude sessions |
-| CLI report wrapper | `src/reporting/cli.ts` | Merge into CLI directly or remove (one-line passthrough) |
+| Component                      | Location                        | Should be                                                                                       |
+| ------------------------------ | ------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Telegram report formatting     | `src/validation/telegram.ts`    | Move to `src/integrations/telegram.ts` under optional integration boundary, or remove if unused |
+| MCP client connection tracking | `sessions` table (migration v1) | Keep but rename to `mcp_connections` to avoid collision with Claude sessions                    |
+| CLI report wrapper             | `src/reporting/cli.ts`          | Merge into CLI directly or remove (one-line passthrough)                                        |
 
 ### Missing
 
-| Capability | Priority |
-|------------|----------|
-| `ExecutionRequest` — structured Hermes brief with Claude config | Phase 1 (2.0-A1) |
-| `ClaudeConfiguration v1` — separate contract for Claude setup | Phase 1 (2.0-A1) |
-| `Execution` entity — durable unit tracked through MCP | Phase 1 (2.0-A2) |
-| `ExecutionProfile` — named Claude defaults + allowed overrides | Phase 1 (2.0-A2) |
-| `PolicySnapshot` — recorded policy state at submission time | Phase 1 (2.0-A2) |
-| `ExecutionResult` — structured terminal result | Phase 1 (2.0-A1) |
-| `Artifact` — versioned bounded output storage with multi-tier limits | Phase 2 |
-| Execution service layer (decouples MCP from Claude adapter) | Phase 1 (2.0-A3) |
-| `awaiting_input` handling with structured adapter signal | Phase 2 |
-| Provider profile system (env var references, no DB-stored secrets) | Phase 4 |
+| Capability                                                              | Priority         |
+| ----------------------------------------------------------------------- | ---------------- |
+| `ExecutionRequest` — structured Hermes brief with Claude config         | Phase 1 (2.0-A1) |
+| `ClaudeConfiguration v1` — separate contract for Claude setup           | Phase 1 (2.0-A1) |
+| `Execution` entity — durable unit tracked through MCP                   | Phase 1 (2.0-A2) |
+| `ExecutionProfile` — named Claude defaults + allowed overrides          | Phase 1 (2.0-A2) |
+| `PolicySnapshot` — recorded policy state at submission time             | Phase 1 (2.0-A2) |
+| `ExecutionResult` — structured terminal result                          | Phase 1 (2.0-A1) |
+| `Artifact` — versioned bounded output storage with multi-tier limits    | Phase 2          |
+| Execution service layer (decouples MCP from Claude adapter)             | Phase 1 (2.0-A3) |
+| `awaiting_input` handling with structured adapter signal                | Phase 2          |
+| Provider profile system (env var references, no DB-stored secrets)      | Phase 4          |
 | Real MCP protocol tests (stdio transport, init, tools/list, tool calls) | Phase 1 (2.0-A3) |
-| Post-restart cancellation recovery | Phase 2 |
-| Validation execution (Hermes-requested lint/test/build post-Claude) | Phase 4 |
+| Post-restart cancellation recovery                                      | Phase 2          |
+| Validation execution (Hermes-requested lint/test/build post-Claude)     | Phase 4          |
 
 ### Should Be Removed or Isolated
 
-| Item | Disposition |
-|------|------------|
-| `hco_task_start` tool | Route through compatibility boundary with `hco_session_start`; freeze new development; deprecate |
-| `hco_inspect_job`, `hco_list_jobs`, `hco_list_milestones` (H0-era read-only tools) | Deprecate after Phase 3 execution tools land; keep for HCO 1.0.0 compat |
-| Jobs table + daemon worker as primary execution path | Freeze; daemon will eventually consume `ExecutionService` |
-| `src/validation/telegram.ts` | Move to `src/integrations/telegram.ts` under optional integration boundary, or remove if unused |
-| `src/reporting/cli.ts` | Remove (one-line passthrough to `formatTelegramReport`) |
+| Item                                                                               | Disposition                                                                                      |
+| ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `hco_task_start` tool                                                              | Route through compatibility boundary with `hco_session_start`; freeze new development; deprecate |
+| `hco_inspect_job`, `hco_list_jobs`, `hco_list_milestones` (H0-era read-only tools) | Deprecate after Phase 3 execution tools land; keep for HCO 1.0.0 compat                          |
+| Jobs table + daemon worker as primary execution path                               | Freeze; daemon will eventually consume `ExecutionService`                                        |
+| `src/validation/telegram.ts`                                                       | Move to `src/integrations/telegram.ts` under optional integration boundary, or remove if unused  |
+| `src/reporting/cli.ts`                                                             | Remove (one-line passthrough to `formatTelegramReport`)                                          |
 
 ---
 
@@ -155,19 +155,19 @@ McpServer (11 registered tools)
 
 ## Reusable Foundations
 
-| Foundation | Reuse Strategy |
-|------------|---------------|
-| SQLite + WAL + migration system (`src/state/db.ts`) | Keep; add v7 migration for new domain tables |
-| `ClaudeSession` state machine (`src/claude/session.ts`) | Evolve into `Execution` state machine; keep valid-transition pattern |
-| `session_events` append-only pattern | Keep pattern; new `execution_events` table uses same trigger-based immutability |
-| `SpawnRunner` + `ProcessRunner` interface | Keep as `ClaudeCodeAdapter` implementation |
-| `validateRepoPath()` | Keep; call from execution service, not MCP handler |
-| Environment filtering (`filterEnv`) | Keep; extend to support provider profiles |
-| Secret sanitization (`sanitize()`) | Keep; apply to execution results, artifacts, and MCP responses |
-| Zod input validation patterns | Keep; extend to `ExecutionRequest`, `ClaudeConfiguration`, `ExecutionProfile` schemas |
-| Lease-based claiming (`claimJob`, `releaseExpiredJobs`, `renewJobLease`) | Adapt for execution queue ownership |
-| Config schema (`HcoConfig`) | Extend with `executionProfiles` and `providerProfiles` sections |
-| `AppContext` pattern (`src/core/context.ts`) | Keep; add execution service and repository to context |
+| Foundation                                                               | Reuse Strategy                                                                        |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| SQLite + WAL + migration system (`src/state/db.ts`)                      | Keep; add v7 migration for new domain tables                                          |
+| `ClaudeSession` state machine (`src/claude/session.ts`)                  | Evolve into `Execution` state machine; keep valid-transition pattern                  |
+| `session_events` append-only pattern                                     | Keep pattern; new `execution_events` table uses same trigger-based immutability       |
+| `SpawnRunner` + `ProcessRunner` interface                                | Keep as `ClaudeCodeAdapter` implementation                                            |
+| `validateRepoPath()`                                                     | Keep; call from execution service, not MCP handler                                    |
+| Environment filtering (`filterEnv`)                                      | Keep; extend to support provider profiles                                             |
+| Secret sanitization (`sanitize()`)                                       | Keep; apply to execution results, artifacts, and MCP responses                        |
+| Zod input validation patterns                                            | Keep; extend to `ExecutionRequest`, `ClaudeConfiguration`, `ExecutionProfile` schemas |
+| Lease-based claiming (`claimJob`, `releaseExpiredJobs`, `renewJobLease`) | Adapt for execution queue ownership                                                   |
+| Config schema (`HcoConfig`)                                              | Extend with `executionProfiles` and `providerProfiles` sections                       |
+| `AppContext` pattern (`src/core/context.ts`)                             | Keep; add execution service and repository to context                                 |
 
 ---
 
@@ -224,12 +224,12 @@ Supporting domain objects:
 
 Artifact size limits (four separate tiers):
 
-| Tier | Purpose | Default | Configurable |
-|------|---------|---------|-------------|
-| Inline MCP response limit | Maximum JSON payload returned directly in MCP tool response | 64 KiB | Yes |
-| Event chunk limit | Maximum single `ExecutionEvent` payload | 256 KiB | Yes |
-| Individual artifact limit | Maximum single artifact file on disk | 10 MiB | Yes |
-| Total per-execution limit | Maximum sum of all artifacts for one execution | 100 MiB | Yes |
+| Tier                      | Purpose                                                     | Default | Configurable |
+| ------------------------- | ----------------------------------------------------------- | ------- | ------------ |
+| Inline MCP response limit | Maximum JSON payload returned directly in MCP tool response | 64 KiB  | Yes          |
+| Event chunk limit         | Maximum single `ExecutionEvent` payload                     | 256 KiB | Yes          |
+| Individual artifact limit | Maximum single artifact file on disk                        | 10 MiB  | Yes          |
+| Total per-execution limit | Maximum sum of all artifacts for one execution              | 100 MiB | Yes          |
 
 Large output must be persisted and referenced via artifact keys. Truncation beyond the total per-execution limit appends a truncation marker.
 
@@ -328,6 +328,7 @@ Phase 1 is split into three atomic milestones. Each produces exactly one commit.
 - Stable bounded validation errors for every schema (field-level messages, no stack traces)
 
 **Idempotency key design (binding decision #1):**
+
 - `idempotency_key` is optional on `ExecutionRequest`
 - When Hermes provides it, HCO uses it for deduplication
 - When absent, HCO generates a random unique key (e.g., UUID v4)
@@ -350,6 +351,7 @@ Phase 1 is split into three atomic milestones. Each produces exactly one commit.
 - `tests/contract-version.test.ts` (new)
 
 **Non-goals:**
+
 - No database migration
 - No MCP tool registration
 - No Claude adapter
@@ -419,6 +421,7 @@ feat(execution): define Execution Contract v1
 - `tests/state-migration-v7.test.ts` (new)
 
 **Non-goals:**
+
 - No MCP tool
 - No Claude process launch
 - No validation execution
@@ -495,6 +498,7 @@ feat(execution): persist immutable execution requests
 - `tests/execution-service-submit.test.ts` (new)
 
 **Non-goals:**
+
 - No Claude process launch
 - No state machine transitions beyond `accepted`
 - No `hco_execution_status`, `hco_execution_wait`, or other execution tools
@@ -603,17 +607,18 @@ Phase 3 milestones will be detailed after Phase 2 is complete.
 
 Define and register 7 MCP tools:
 
-| Tool | Purpose | Input | Output |
-|------|---------|-------|--------|
-| `hco_execution_submit` | Submit an execution request | `ExecutionRequest` JSON | `{ execution_id, status, accepted_at }` |
-| `hco_execution_status` | Get current execution state | `{ execution_id }` | Execution status + latest event |
-| `hco_execution_wait` | Block until terminal state | `{ execution_id, timeout_ms? }` | `ExecutionResult` |
-| `hco_execution_continue` | Resume a completed/failed execution | `{ execution_id, continuation_prompt }` | `{ execution_id, status }` |
-| `hco_execution_cancel` | Cancel a running or queued execution | `{ execution_id, reason? }` | `{ execution_id, status }` |
-| `hco_execution_result` | Get structured terminal result | `{ execution_id }` | `ExecutionResult` |
-| `hco_execution_artifact` | Retrieve a named artifact | `{ execution_id, artifact_key }` | `{ artifact_id, content_type, data?, truncated? }` |
+| Tool                     | Purpose                              | Input                                   | Output                                             |
+| ------------------------ | ------------------------------------ | --------------------------------------- | -------------------------------------------------- |
+| `hco_execution_submit`   | Submit an execution request          | `ExecutionRequest` JSON                 | `{ execution_id, status, accepted_at }`            |
+| `hco_execution_status`   | Get current execution state          | `{ execution_id }`                      | Execution status + latest event                    |
+| `hco_execution_wait`     | Block until terminal state           | `{ execution_id, timeout_ms? }`         | `ExecutionResult`                                  |
+| `hco_execution_continue` | Resume a completed/failed execution  | `{ execution_id, continuation_prompt }` | `{ execution_id, status }`                         |
+| `hco_execution_cancel`   | Cancel a running or queued execution | `{ execution_id, reason? }`             | `{ execution_id, status }`                         |
+| `hco_execution_result`   | Get structured terminal result       | `{ execution_id }`                      | `ExecutionResult`                                  |
+| `hco_execution_artifact` | Retrieve a named artifact            | `{ execution_id, artifact_key }`        | `{ artifact_id, content_type, data?, truncated? }` |
 
 Key design rules:
+
 - All input schemas via Zod with max lengths and enum validation
 - All responses are `{ data: T }` or `{ error: { code, message } }`
 - Large output stored as artifacts, referenced by key, never inlined
@@ -697,6 +702,7 @@ Every phase that touches MCP MUST include:
 9. Verify no normal logs corrupt MCP stdio
 
 Stdio discipline rule:
+
 - stdout = MCP protocol ONLY
 - stderr = diagnostics
 - No `console.log()` or banners on stdout in the MCP server path
@@ -706,21 +712,25 @@ Stdio discipline rule:
 ## Responsibility Boundaries
 
 ### Hermes Owns
+
 - User intent, prompt refinement, architecture, task decomposition
 - Project memory, acceptance criteria, Claude configuration selection
 - Result review, retry/continuation decisions, deciding whether work is complete
 
 ### HCO Owns
+
 - MCP server behavior, schema validation, durable execution
 - Policy enforcement, repository boundaries, provider/secret profile activation
 - Claude Code process and session lifecycle, output capture, artifacts
 - Recovery, validation execution, compact structured results
 
 ### Claude Code Owns
+
 - Repository inspection, implementation, file editing, commands, tests
 - Debugging, local engineering decisions
 
 ### HCO Must NOT Become
+
 - A prompt improver, planner, architecture agent, code reviewer
 - A semantic retry engine, project-memory system, repository indexing system
 - A Telegram conversation system, autonomous GitHub merger, deployment orchestrator
@@ -737,8 +747,8 @@ Followed immediately by **2.0-A2** (immutable persistence) and **2.0-A3** (MCP s
 
 ## Atomic Milestone Summary (Phase 1)
 
-| Milestone | Commit | Responsibility | DB? | MCP? | Claude? |
-|-----------|--------|---------------|-----|------|---------|
-| 2.0-A1 | `feat(execution): define Execution Contract v1` | Zod schemas, types, contract-version validation, stable errors | No | No | No |
-| 2.0-A2 | `feat(execution): persist immutable execution requests` | Migration v7, `ExecutionRepository`, idempotency | Yes | No | No |
-| 2.0-A3 | `feat(mcp): expose durable execution submission` | `ExecutionService.submit()`, `hco_execution_submit`, real MCP protocol tests | Yes | Yes | No |
+| Milestone | Commit                                                  | Responsibility                                                               | DB? | MCP? | Claude? |
+| --------- | ------------------------------------------------------- | ---------------------------------------------------------------------------- | --- | ---- | ------- |
+| 2.0-A1    | `feat(execution): define Execution Contract v1`         | Zod schemas, types, contract-version validation, stable errors               | No  | No   | No      |
+| 2.0-A2    | `feat(execution): persist immutable execution requests` | Migration v7, `ExecutionRepository`, idempotency                             | Yes | No   | No      |
+| 2.0-A3    | `feat(mcp): expose durable execution submission`        | `ExecutionService.submit()`, `hco_execution_submit`, real MCP protocol tests | Yes | Yes  | No      |

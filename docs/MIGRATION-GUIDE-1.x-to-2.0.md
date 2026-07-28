@@ -10,36 +10,37 @@ from the legacy `claude_sessions` + `ClaudeLauncher` model to the new
 
 ### Architecture
 
-| 1.x | 2.0.0 |
-|-----|-------|
+| 1.x                                             | 2.0.0                                                                                    |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | MCP handler → DB + ClaudeLauncher → SpawnRunner | MCP handler → ExecutionService → ExecutionRepository → ClaudeCodeAdapter → ProcessRunner |
-| `claude_sessions` table | `executions` table (authoritative) + `claude_sessions` (frozen) |
-| `hco_session_start` | `hco_execution_submit` + `hco_execution_start` |
-| `hco_session_status` | `hco_execution_status` |
-| `hco_session_wait` | `hco_execution_wait` |
-| `hco_session_stop` | `hco_execution_cancel` |
-| `hco_task_start` | `hco_execution_submit` |
-| Jobs table (daemon) | ExecutionService (canonical path) |
+| `claude_sessions` table                         | `executions` table (authoritative) + `claude_sessions` (frozen)                          |
+| `hco_session_start`                             | `hco_execution_submit` + `hco_execution_start`                                           |
+| `hco_session_status`                            | `hco_execution_status`                                                                   |
+| `hco_session_wait`                              | `hco_execution_wait`                                                                     |
+| `hco_session_stop`                              | `hco_execution_cancel`                                                                   |
+| `hco_task_start`                                | `hco_execution_submit`                                                                   |
+| Jobs table (daemon)                             | ExecutionService (canonical path)                                                        |
 
 ### Tool Deprecation Timeline
 
-| Tool | Status | Replacement |
-|------|--------|-------------|
-| `hco_session_start` | Deprecated (stderr warning) | `hco_execution_submit` + `hco_execution_start` |
-| `hco_session_list` | Deprecated | `hco_execution_status` |
-| `hco_session_status` | Deprecated | `hco_execution_status` |
-| `hco_session_wait` | Deprecated | `hco_execution_wait` |
-| `hco_session_stop` | Deprecated | `hco_execution_cancel` |
-| `hco_session_archive` | Deprecated | Terminal states auto-recorded |
-| `hco_task_start` | Deprecated | `hco_execution_submit` |
-| `hco_status` | Available | `hco_health` |
-| `hco_list_jobs` | Available | `hco_execution_status` (per execution) |
-| `hco_inspect_job` | Available | `hco_execution_result` |
-| `hco_list_milestones` | Available | No direct replacement |
+| Tool                  | Status                      | Replacement                                    |
+| --------------------- | --------------------------- | ---------------------------------------------- |
+| `hco_session_start`   | Deprecated (stderr warning) | `hco_execution_submit` + `hco_execution_start` |
+| `hco_session_list`    | Deprecated                  | `hco_execution_status`                         |
+| `hco_session_status`  | Deprecated                  | `hco_execution_status`                         |
+| `hco_session_wait`    | Deprecated                  | `hco_execution_wait`                           |
+| `hco_session_stop`    | Deprecated                  | `hco_execution_cancel`                         |
+| `hco_session_archive` | Deprecated                  | Terminal states auto-recorded                  |
+| `hco_task_start`      | Deprecated                  | `hco_execution_submit`                         |
+| `hco_status`          | Available                   | `hco_health`                                   |
+| `hco_list_jobs`       | Available                   | `hco_execution_status` (per execution)         |
+| `hco_inspect_job`     | Available                   | `hco_execution_result`                         |
+| `hco_list_milestones` | Available                   | No direct replacement                          |
 
 ## Database Migration
 
 HCO 2.0.0 automatically applies migrations v7-v10 on startup:
+
 - v7: `executions` + `execution_events` tables
 - v8: execution queue (worker_id, lease_until)
 - v9: process_attempts table
@@ -51,11 +52,13 @@ historical data but is no longer the source of truth.
 ## Migrating Legacy Data
 
 To migrate existing jobs to the execution model:
+
 ```bash
 node dist/migrate/migrate-v1-to-v2.js --data-dir /var/lib/hco --dry-run
 ```
 
 Review the output, then run without `--dry-run`:
+
 ```bash
 node dist/migrate/migrate-v1-to-v2.js --data-dir /var/lib/hco
 ```
@@ -99,6 +102,7 @@ Existing `claude_sessions` are mapped to `ProcessAttempt` records where possible
 ```
 
 Then:
+
 ```json
 {
   "name": "hco_execution_start",
@@ -137,6 +141,7 @@ is preserved.
 ## Configuration
 
 HCO 2.0.0 configuration is backward-compatible with 1.x. New sections:
+
 - `executionProfiles` (optional)
 - `providerProfiles` (optional)
 

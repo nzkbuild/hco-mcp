@@ -23,6 +23,7 @@ persisted, tracked through a validated state machine, and recoverable.
 ### ProcessAttempt Tracking
 
 Every real process launch records:
+
 - Attempt number (supports retry)
 - PID
 - Start and finish timestamps
@@ -35,6 +36,7 @@ Multiple `awaiting_input` cycles use a single attempt.
 ### Artifact System
 
 Four-tier size enforcement:
+
 1. Inline MCP response (64 KiB)
 2. Event chunk (256 KiB)
 3. Individual artifact (10 MiB)
@@ -46,6 +48,7 @@ with offset/limit pagination.
 ### Post-Claude Validation
 
 Three profiles:
+
 - `quick`: `npm run build`
 - `standard`: build + test
 - `strict`: build + test + lint + format + diff-check
@@ -56,6 +59,7 @@ configured in the execution profile.
 ### Provider Profile System
 
 Provider credentials are referenced via environment variables only:
+
 ```json
 {
   "profile_id": "production",
@@ -77,6 +81,7 @@ No API keys or secrets are stored in SQLite or passed through MCP.
 ## Migration
 
 Run the migration tool with dry-run first:
+
 ```bash
 node dist/migrate/migrate-v1-to-v2.js --data-dir /var/lib/hco --dry-run
 ```
@@ -102,11 +107,13 @@ Then remove `--dry-run` to execute. Only non-terminal legacy jobs are migrated.
 ## Acceptance Testing
 
 Real Claude Code acceptance tests are opt-in:
+
 ```bash
 HCO_ACCEPTANCE=1 HCO_ADAPTER=spawn npm run test:acceptance
 ```
 
 These tests:
+
 1. Start HCO MCP server as child process
 2. Complete MCP handshake
 3. Submit an execution request
