@@ -1,9 +1,10 @@
 {
   "name": "hco-mcp",
   "version": "2.1.0",
-  "description": "HCO — Hermes Code Operator MCP control plane for engineering workflows",
+  "description": "Give your AI agent a memory. And a seatbelt.",
   "license": "MIT",
-  "private": true,
+  "repository": "github:nzkbuild/hco-mcp",
+  "keywords": ["mcp", "mcp-server", "claude-code", "hermes", "ai-agent", "sqlite", "anthropic"],
   "type": "module",
   "main": "dist/index.js",
   "bin": {
