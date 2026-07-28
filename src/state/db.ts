@@ -363,6 +363,35 @@ const migrations: Migration[] = [
     },
   },
   {
+    version: 12,
+    name: 'workspaces',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS workspaces (
+          id                     INTEGER PRIMARY KEY AUTOINCREMENT,
+          workspace_id           TEXT NOT NULL UNIQUE,
+          repository_owner       TEXT NOT NULL,
+          repository_name        TEXT NOT NULL,
+          repository_path        TEXT NOT NULL,
+          provider_profile_id    TEXT NOT NULL REFERENCES providers(provider_id),
+          model_mapping_id       TEXT,
+          policy_snapshot_json   TEXT,
+          environment_profile_json TEXT,
+          status                 TEXT NOT NULL DEFAULT 'active'
+            CHECK (status IN ('active', 'archived')),
+          created_at             TEXT NOT NULL DEFAULT (datetime('now')),
+          last_resumed_at        TEXT
+        );
+
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_workspaces_repo_provider
+          ON workspaces(repository_owner, repository_name, provider_profile_id)
+          WHERE status = 'active';
+
+        CREATE INDEX IF NOT EXISTS idx_workspaces_status ON workspaces(status);
+      `);
+    },
+  },
+  {
     version: 11,
     name: 'providers-and-mappings',
     up: (db) => {

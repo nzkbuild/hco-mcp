@@ -39,3 +39,6 @@ export type {
   ProviderValidationResult,
   ProviderHealthResult,
 } from './provider-adapter.js';
+
+export { WorkspaceV1 } from './workspace.js';
+export type { WorkspaceV1 as WorkspaceV1Type } from './workspace.js';
