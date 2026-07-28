@@ -39,6 +39,7 @@ import { getExecution } from '../state/execution-repository.js';
 import { ProviderService } from '../provider/service.js';
 import { ProviderProfileV1 } from '../contract/provider-profile.js';
 import { WorkspaceService } from '../workspace/service.js';
+import { StatisticsService } from '../statistics/service.js';
 
 // ─── Re-export for tests ─────────────────────────────────────────────────────
 
@@ -54,6 +55,7 @@ interface ServerState {
   executionService: ExecutionService;
   providerService: ProviderService;
   workspaceService: WorkspaceService;
+  statsService: StatisticsService;
 }
 
 let state: ServerState;
@@ -633,6 +635,21 @@ export function handleCompatibility(): McpSuccessResponse {
   });
 }
 
+// ─── Statistics handlers ─────────────────────────────────────────────────────
+
+export function handleStatistics(): McpErrorResponse | McpSuccessResponse {
+  try {
+    const overview = state.statsService.getOverview();
+    const queue = state.statsService.getQueueHealth();
+    const providers = state.statsService.getProviderHealth();
+    const timeline = state.statsService.getTimeline();
+    return success({ overview, queue, providers, timeline });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    return sanitizedError(ErrorCode.SPAWN_FAILED, `Statistics failed: ${msg}`);
+  }
+}
+
 // ─── Workspace handlers ───────────────────────────────────────────────────────
 
 export function handleWorkspaceResume(args: {
@@ -869,6 +886,7 @@ function createServerState(opts: HcoConfig | AppContext | McpOptionsWithLauncher
     executionService: new ExecutionService(db, createAdapter()),
     providerService: new ProviderService(db),
     workspaceService: new WorkspaceService(db),
+    statsService: new StatisticsService(db),
   };
 }
 
@@ -1039,6 +1057,19 @@ function registerAllTools(server: McpServer): void {
     },
     (args) => ({
       content: [{ type: 'text', text: JSON.stringify(handleSessionStart(args)) }],
+    }),
+  );
+
+  // ─── Statistics tool: 2.1-C1 ──────────────────────────────────────────────
+
+  server.registerTool(
+    'hco_statistics',
+    {
+      description:
+        'Get operational statistics: overview, queue health, provider health, and timeline.',
+    },
+    () => ({
+      content: [{ type: 'text', text: JSON.stringify(handleStatistics()) }],
     }),
   );
 
