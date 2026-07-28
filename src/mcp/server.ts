@@ -38,6 +38,7 @@ import { ArtifactStorage, ARTIFACT_LIMITS } from '../state/artifact-store.js';
 import { getExecution } from '../state/execution-repository.js';
 import { ProviderService } from '../provider/service.js';
 import { ProviderProfileV1 } from '../contract/provider-profile.js';
+import { WorkspaceService } from '../workspace/service.js';
 
 // ─── Re-export for tests ─────────────────────────────────────────────────────
 
@@ -52,6 +53,7 @@ interface ServerState {
   launcher: ClaudeLauncher | undefined;
   executionService: ExecutionService;
   providerService: ProviderService;
+  workspaceService: WorkspaceService;
 }
 
 let state: ServerState;
@@ -631,6 +633,59 @@ export function handleCompatibility(): McpSuccessResponse {
   });
 }
 
+// ─── Workspace handlers ───────────────────────────────────────────────────────
+
+export function handleWorkspaceResume(args: {
+  owner: string;
+  repo: string;
+  path: string;
+  provider_profile_id: string;
+}): McpErrorResponse | McpSuccessResponse {
+  try {
+    const ws = state.workspaceService.createOrResume(
+      args.owner,
+      args.repo,
+      args.path,
+      args.provider_profile_id,
+    );
+    if (!ws) {
+      return error(ErrorCode.VALIDATION_ERROR, 'Failed to create or resume workspace');
+    }
+    return success(ws);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    return sanitizedError(ErrorCode.SPAWN_FAILED, `Workspace resume failed: ${msg}`);
+  }
+}
+
+export function handleWorkspaceList(): McpErrorResponse | McpSuccessResponse {
+  try {
+    const workspaces = state.workspaceService.list();
+    return success({ workspaces });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    return sanitizedError(ErrorCode.SPAWN_FAILED, `Workspace list failed: ${msg}`);
+  }
+}
+
+export function handleWorkspaceStatus(args: {
+  workspace_id: string;
+}): McpErrorResponse | McpSuccessResponse {
+  try {
+    const status = state.workspaceService.getStatus(args.workspace_id);
+    if (!status) {
+      return error(
+        ErrorCode.VALIDATION_ERROR,
+        `Workspace "${args.workspace_id}" not found`,
+      );
+    }
+    return success(status);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    return sanitizedError(ErrorCode.SPAWN_FAILED, `Workspace status failed: ${msg}`);
+  }
+}
+
 // ─── Provider handlers ────────────────────────────────────────────────────────
 
 export function handleProviderRegister(args: {
@@ -813,6 +868,7 @@ function createServerState(opts: HcoConfig | AppContext | McpOptionsWithLauncher
     launcher,
     executionService: new ExecutionService(db, createAdapter()),
     providerService: new ProviderService(db),
+    workspaceService: new WorkspaceService(db),
   };
 }
 
@@ -983,6 +1039,54 @@ function registerAllTools(server: McpServer): void {
     },
     (args) => ({
       content: [{ type: 'text', text: JSON.stringify(handleSessionStart(args)) }],
+    }),
+  );
+
+  // ─── Workspace tools: 2.1-B2 ─────────────────────────────────────────────
+
+  const WORKSPACE_ID_SCHEMA = z.string().min(1).max(256);
+  const WS_OWNER_SCHEMA = z.string().min(1).max(256);
+  const WS_REPO_SCHEMA = z.string().min(1).max(256);
+  const WS_PATH_SCHEMA = z.string().min(1).max(4096);
+  const WS_PROVIDER_ID_SCHEMA = z.string().min(1).max(256);
+
+  server.registerTool(
+    'hco_workspace_resume',
+    {
+      description:
+        'Create or resume a workspace for a repository+provider combination. Idempotent - returns existing workspace if one exists for the same repo and provider.',
+      inputSchema: {
+        owner: WS_OWNER_SCHEMA.describe('Repository owner'),
+        repo: WS_REPO_SCHEMA.describe('Repository name'),
+        path: WS_PATH_SCHEMA.describe('Local repository path'),
+        provider_profile_id: WS_PROVIDER_ID_SCHEMA.describe('Active provider profile ID to associate'),
+      },
+    },
+    (args) => ({
+      content: [{ type: 'text', text: JSON.stringify(handleWorkspaceResume(args)) }],
+    }),
+  );
+
+  server.registerTool(
+    'hco_workspace_list',
+    {
+      description: 'List all registered workspaces with status.',
+    },
+    () => ({
+      content: [{ type: 'text', text: JSON.stringify(handleWorkspaceList()) }],
+    }),
+  );
+
+  server.registerTool(
+    'hco_workspace_status',
+    {
+      description: 'Get full workspace status including associated provider status.',
+      inputSchema: {
+        workspace_id: WORKSPACE_ID_SCHEMA.describe('The workspace ID to query'),
+      },
+    },
+    (args) => ({
+      content: [{ type: 'text', text: JSON.stringify(handleWorkspaceStatus(args)) }],
     }),
   );
 
