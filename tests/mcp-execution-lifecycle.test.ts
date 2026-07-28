@@ -292,4 +292,35 @@ describe('MCP execution lifecycle (real transport)', () => {
     assert.ok(parsed.error, `should have error, got: ${JSON.stringify(parsed)}`);
     assert.equal((parsed.error as Record<string, unknown>).code, 'INVALID_LIFECYCLE');
   });
+
+  // ─── Artifact retrieval tests ───────────────────────────────────────
+
+  it('tools/list includes hco_execution_artifact', async () => {
+    const tools = await client.listTools();
+    const names = tools.tools.map((t) => t.name);
+    assert.ok(
+      names.includes('hco_execution_artifact'),
+      'tools/list should include hco_execution_artifact',
+    );
+  });
+
+  it('hco_execution_artifact returns error for unknown execution', async () => {
+    const result = await client.callTool({
+      name: 'hco_execution_artifact',
+      arguments: { execution_id: 'unknown', artifact_id: 'art-1' },
+    });
+    const parsed = parseResponse(result.content);
+    assert.ok(parsed.error, `should have error, got: ${JSON.stringify(parsed)}`);
+  });
+
+  it('hco_execution_artifact returns error for unknown artifact', async () => {
+    const executionId = await submitExecution(client);
+
+    const result = await client.callTool({
+      name: 'hco_execution_artifact',
+      arguments: { execution_id: executionId, artifact_id: 'nonexistent' },
+    });
+    const parsed = parseResponse(result.content);
+    assert.ok(parsed.error, `should have error, got: ${JSON.stringify(parsed)}`);
+  });
 });

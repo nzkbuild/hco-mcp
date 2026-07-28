@@ -1,12 +1,2 @@
-import { formatTelegramReport } from '../integrations/telegram.js';
-
-export interface CliReportInput {
-  kind: string;
-  id: string;
-  status: string;
-  detail?: string;
-}
-
-export function formatCliReport(input: CliReportInput): string {
-  return formatTelegramReport(input);
-}
+// Removed — one-line passthrough to src/integrations/telegram.ts
+// See HCO 2.0.0 Roadmap (Misplaced items)

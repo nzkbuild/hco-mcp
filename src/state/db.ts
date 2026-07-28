@@ -224,19 +224,6 @@ const migrations: Migration[] = [
     },
   },
   {
-    version: 6,
-    name: 'jobs-worker-lease',
-    up: (db) => {
-      db.exec(`
-        ALTER TABLE jobs ADD COLUMN worker_id TEXT DEFAULT NULL;
-        ALTER TABLE jobs ADD COLUMN lease_until TEXT DEFAULT NULL;
-        CREATE INDEX IF NOT EXISTS idx_jobs_worker ON jobs(worker_id);
-        CREATE INDEX IF NOT EXISTS idx_jobs_lease ON jobs(lease_until);
-        CREATE INDEX IF NOT EXISTS idx_jobs_claim ON jobs(status, lease_until);
-      `);
-    },
-  },
-  {
     version: 5,
     name: 'claude-status-archived-check',
     up: (db) => {
@@ -278,6 +265,19 @@ const migrations: Migration[] = [
 
         CREATE INDEX IF NOT EXISTS idx_claude_sessions_status ON claude_sessions(status);
         CREATE INDEX IF NOT EXISTS idx_claude_sessions_repo ON claude_sessions(repo_owner, repo_name);
+      `);
+    },
+  },
+  {
+    version: 6,
+    name: 'jobs-worker-lease',
+    up: (db) => {
+      db.exec(`
+        ALTER TABLE jobs ADD COLUMN worker_id TEXT DEFAULT NULL;
+        ALTER TABLE jobs ADD COLUMN lease_until TEXT DEFAULT NULL;
+        CREATE INDEX IF NOT EXISTS idx_jobs_worker ON jobs(worker_id);
+        CREATE INDEX IF NOT EXISTS idx_jobs_lease ON jobs(lease_until);
+        CREATE INDEX IF NOT EXISTS idx_jobs_claim ON jobs(status, lease_until);
       `);
     },
   },

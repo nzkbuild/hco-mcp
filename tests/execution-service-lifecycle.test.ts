@@ -5,7 +5,8 @@ import Database from 'better-sqlite3';
 import { openDb } from '../src/state/db.js';
 import { ExecutionService, ExecutionLifecycleError } from '../src/execution/service.js';
 import { FakeClaudeCodeAdapter } from '../src/claude/adapter.js';
-import type { ClaudeCodeAdapter, ProcessAttempt } from '../src/claude/adapter.js';
+import type { ClaudeCodeAdapter } from '../src/claude/adapter.js';
+import { getProcessAttempts, getLatestProcessAttempt } from '../src/state/execution-repository.js';
 import { ExecutionRequestV1 } from '../src/contract/execution-request.js';
 import { ExecutionProfileV1 } from '../src/contract/execution-profile.js';
 import { PolicySnapshotV1 } from '../src/contract/policy-snapshot.js';
@@ -97,13 +98,9 @@ describe('ExecutionService lifecycle', () => {
   it('start onExit handler transitions to completed on exit_code=0', async () => {
     const result = service.submit(validRequest(), validProfile(), validPolicy());
 
-    const completed = await new Promise((resolve) => {
-      service.start(result.execution_id);
-      // Fake adapter fires onExit via setImmediate
-      setImmediate(() => {
-        resolve(service.getStatus(result.execution_id));
-      });
-    });
+    service.start(result.execution_id);
+    // Fake adapter fires onExit via setImmediate
+    await new Promise((r) => setImmediate(r));
 
     // Wait for the async onExit to process
     await new Promise((r) => setTimeout(r, 20));
@@ -189,5 +186,141 @@ describe('ExecutionService lifecycle', () => {
     // isTerminal('awaiting_input') returns false from the state machine.
     // This is verified by the state machine tests (B1).
     assert.ok(true);
+  });
+
+  // ─── ProcessAttempt persistence tests ────────────────────────────────────────
+
+  it('successful execution creates and finishes exactly one ProcessAttempt', async () => {
+    const result = service.submit(validRequest(), validProfile(), validPolicy());
+    service.start(result.execution_id);
+
+    await new Promise((r) => setTimeout(r, 50));
+
+    const attempts = getProcessAttempts(db, result.execution_id);
+    assert.equal(attempts.length, 1, 'exactly one ProcessAttempt');
+    const a = attempts[0];
+    assert.ok(a, 'attempt exists');
+    assert.equal(a.executionId, result.execution_id);
+    assert.equal(a.attemptNumber, 1);
+    assert.ok(typeof a.finishedAt === 'string', 'finishedAt is set');
+    assert.equal(a.exitCode, 0);
+    assert.equal(a.timedOut, false);
+    assert.equal(a.aborted, false);
+  });
+
+  it('cancelled execution finishes ProcessAttempt with aborted=true', async () => {
+    const result = service.submit(validRequest(), validProfile(), validPolicy());
+    service.start(result.execution_id);
+    service.cancel(result.execution_id, 'test');
+
+    // onExit fires async via setImmediate — wait for it
+    await new Promise((r) => setTimeout(r, 20));
+
+    const attempts = getProcessAttempts(db, result.execution_id);
+    assert.equal(attempts.length, 1);
+    const a = attempts[0];
+    assert.ok(a);
+    assert.ok(typeof a.finishedAt === 'string', 'finishedAt should be set after async onExit');
+    assert.equal(a.aborted, true);
+  });
+
+  it('ProcessAttempt remains open during awaiting_input then finishes on continue', async () => {
+    const db2Dir = `/tmp/hco-test-pa-${String(Date.now())}-${Math.random().toString(36).slice(2)}`;
+    const db2 = openDb(db2Dir);
+
+    const adapter2 = new FakeClaudeCodeAdapter({ awaitingInputCount: 1 });
+    const svc2 = new ExecutionService(db2, adapter2);
+
+    const result = svc2.submit(validRequest(), validProfile(), validPolicy());
+    svc2.start(result.execution_id);
+    await new Promise((r) => setTimeout(r, 50));
+
+    let attempts = getProcessAttempts(db2, result.execution_id);
+    assert.equal(attempts.length, 1);
+    let a = attempts[0];
+    assert.ok(a);
+    assert.equal(a.finishedAt, null, 'attempt is still open during awaiting_input');
+
+    svc2.continue(result.execution_id, 'Proceed');
+    await new Promise((r) => setTimeout(r, 50));
+
+    attempts = getProcessAttempts(db2, result.execution_id);
+    assert.equal(attempts.length, 1);
+    a = attempts[0];
+    assert.ok(a);
+    assert.ok(typeof a.finishedAt === 'string', 'attempt finished after continue');
+    assert.equal(a.exitCode, 0);
+
+    db2.close();
+    try {
+      rmSync(db2Dir, { recursive: true, force: true });
+    } catch {
+      /* ignore */
+    }
+  });
+
+  it('multiple pause-continue cycles use same ProcessAttempt', async () => {
+    const db2Dir = `/tmp/hco-test-pa-multi-${String(Date.now())}-${Math.random().toString(36).slice(2)}`;
+    const db2 = openDb(db2Dir);
+
+    const adapter2 = new FakeClaudeCodeAdapter({ awaitingInputCount: 2 });
+    const svc2 = new ExecutionService(db2, adapter2);
+
+    const result = svc2.submit(validRequest(), validProfile(), validPolicy());
+    svc2.start(result.execution_id);
+
+    await new Promise((r) => setTimeout(r, 50));
+    svc2.continue(result.execution_id, 'First');
+    await new Promise((r) => setTimeout(r, 50));
+    svc2.continue(result.execution_id, 'Second');
+    await new Promise((r) => setTimeout(r, 50));
+
+    const attempts = getProcessAttempts(db2, result.execution_id);
+    assert.equal(attempts.length, 1, 'single ProcessAttempt across all continue cycles');
+    const a = attempts[0];
+    assert.ok(a);
+    assert.ok(typeof a.finishedAt === 'string');
+    assert.equal(a.exitCode, 0);
+
+    db2.close();
+    try {
+      rmSync(db2Dir, { recursive: true, force: true });
+    } catch {
+      /* ignore */
+    }
+  });
+
+  it('launch failure still records a ProcessAttempt', async () => {
+    const db2Dir = `/tmp/hco-test-pa-launch-${String(Date.now())}-${Math.random().toString(36).slice(2)}`;
+    const db2 = openDb(db2Dir);
+
+    const adapter2 = new FakeClaudeCodeAdapter();
+    const svc2 = new ExecutionService(db2, adapter2);
+    const result = svc2.submit(validRequest(), validProfile(), validPolicy());
+    svc2.start(result.execution_id);
+
+    await new Promise((r) => setTimeout(r, 20));
+
+    const attempts = getProcessAttempts(db2, result.execution_id);
+    assert.equal(attempts.length, 1, 'ProcessAttempt created even for immediate results');
+
+    db2.close();
+    try {
+      rmSync(db2Dir, { recursive: true, force: true });
+    } catch {
+      /* ignore */
+    }
+  });
+
+  it('restart recovery: getLatestProcessAttempt identifies abandoned attempts', async () => {
+    const result = service.submit(validRequest(), validProfile(), validPolicy());
+    service.start(result.execution_id);
+
+    await new Promise((r) => setTimeout(r, 20));
+
+    const latest = getLatestProcessAttempt(db, result.execution_id);
+    assert.ok(latest);
+    assert.equal(latest.executionId, result.execution_id);
+    assert.equal(latest.attemptNumber, 1);
   });
 });

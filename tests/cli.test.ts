@@ -54,7 +54,7 @@ describe('CLI foundation', () => {
       return;
     }
     const out = hco('status');
-    assert.ok(out.includes('Foundation ready'));
+    assert.ok(out.includes('Execution pipeline active'));
     assert.ok(out.includes('Data dir'));
     assert.ok(out.includes('Transport'));
   });

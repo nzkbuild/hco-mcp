@@ -34,6 +34,8 @@ import { ExecutionProfileV1 } from '../contract/execution-profile.js';
 import { PolicySnapshotV1 } from '../contract/policy-snapshot.js';
 import { FakeClaudeCodeAdapter, SpawnAdapter } from '../claude/adapter.js';
 import type { ClaudeCodeAdapter } from '../claude/adapter.js';
+import { ArtifactStorage, ARTIFACT_LIMITS } from '../state/artifact-store.js';
+import { getExecution } from '../state/execution-repository.js';
 
 // ─── Re-export for tests ─────────────────────────────────────────────────────
 
@@ -460,6 +462,88 @@ export function handleExecutionResult(args: {
   }
 }
 
+// ─── Artifact schemas ────────────────────────────────────────────────────────
+
+const ARTIFACT_EXECUTION_ID_SCHEMA = z.string().min(1).max(256);
+const ARTIFACT_ID_SCHEMA = z.string().min(1).max(256);
+const ARTIFACT_OFFSET_SCHEMA = z.number().int().min(0).max(100_000_000).default(0);
+const ARTIFACT_LIMIT_SCHEMA = z.number().int().min(1).max(65536).default(65536);
+
+// ─── Execution artifact handler ───────────────────────────────────────────────
+
+export function handleExecutionArtifact(args: {
+  execution_id: string;
+  artifact_id: string;
+  offset?: number | undefined;
+  limit?: number | undefined;
+}): McpErrorResponse | McpSuccessResponse {
+  const exec = getExecution(state.db, args.execution_id);
+  if (!exec) {
+    return error(ErrorCode.VALIDATION_ERROR, `Execution "${args.execution_id}" not found`);
+  }
+
+  const storage = new ArtifactStorage(state.db);
+
+  // Validate artifact belongs to this execution via listing
+  const all = storage.listArtifacts(args.execution_id);
+  const meta = all.find((m) => m.artifact_id === args.artifact_id);
+  if (!meta) {
+    return error(
+      ErrorCode.VALIDATION_ERROR,
+      `Artifact "${args.artifact_id}" not found for execution "${args.execution_id}"`,
+    );
+  }
+
+  const offset = args.offset ?? 0;
+  if (offset >= meta.byte_length) {
+    return error(
+      ErrorCode.VALIDATION_ERROR,
+      `Offset ${String(offset)} exceeds artifact size ${String(meta.byte_length)}`,
+    );
+  }
+
+  const requestLimit = args.limit ?? 65536;
+  const effectiveLimit = Math.min(requestLimit, ARTIFACT_LIMITS.maxInlineBytes);
+
+  const raw = storage.retrieve(args.execution_id, meta.key);
+  if (!raw) {
+    return error(ErrorCode.VALIDATION_ERROR, `Artifact "${args.artifact_id}" data not retrievable`);
+  }
+
+  const end = Math.min(offset + effectiveLimit, raw.length);
+  const chunk = raw.subarray(offset, end);
+  const hasMore = end < raw.length;
+
+  // For textual content types, ensure we don't split a UTF-8 code point
+  let returnedBuf = chunk;
+  if (meta.content_type.startsWith('text/') || meta.content_type === 'application/json') {
+    while (returnedBuf.length > 0 && (returnedBuf[returnedBuf.length - 1] ?? 0) > 0x7f) {
+      // Check if the last byte is a continuation byte (10xxxxxx)
+      const b = returnedBuf[returnedBuf.length - 1] ?? 0;
+      if ((b & 0xc0) === 0x80) {
+        returnedBuf = returnedBuf.subarray(0, returnedBuf.length - 1);
+      } else {
+        break;
+      }
+    }
+  }
+
+  const content = returnedBuf.toString('utf-8');
+
+  return success({
+    artifact_id: meta.artifact_id,
+    execution_id: args.execution_id,
+    key: meta.key,
+    content_type: meta.content_type,
+    size_bytes: meta.byte_length,
+    offset,
+    returned_bytes: returnedBuf.length,
+    has_more: hasMore,
+    next_offset: hasMore ? offset + returnedBuf.length : null,
+    content,
+  });
+}
+
 // ─── Health handler ──────────────────────────────────────────────────────────
 
 export function handleHealth(): McpSuccessResponse {
@@ -862,6 +946,25 @@ function registerAllTools(server: McpServer): void {
   );
 
   server.registerTool(
+    'hco_execution_artifact',
+    {
+      description:
+        'Retrieve a stored execution artifact by artifact ID. Returns chunked content with offset/limit.',
+      inputSchema: {
+        execution_id: ARTIFACT_EXECUTION_ID_SCHEMA.describe(
+          'The execution ID that owns the artifact',
+        ),
+        artifact_id: ARTIFACT_ID_SCHEMA.describe('The artifact ID to retrieve'),
+        offset: ARTIFACT_OFFSET_SCHEMA.describe('Byte offset (0-based, default 0)'),
+        limit: ARTIFACT_LIMIT_SCHEMA.describe('Max bytes to return (1-65536, default 65536)'),
+      },
+    },
+    (args) => ({
+      content: [{ type: 'text', text: JSON.stringify(handleExecutionArtifact(args)) }],
+    }),
+  );
+
+  server.registerTool(
     'hco_execution_continue',
     {
       description: 'Resume an execution paused at awaiting_input with a continuation prompt.',
@@ -912,7 +1015,7 @@ export function createMcpServer(
 ): Promise<McpServer> {
   createServerState(opts);
   const server = new McpServer(
-    { name: 'hco-mcp', version: '0.1.0' },
+    { name: 'hco-mcp', version: '2.0.0' },
     { capabilities: { tools: {} } },
   );
   registerAllTools(server);

@@ -14,6 +14,9 @@ import {
   transitionToTimedOut,
   transitionToAwaitingInput,
   isTerminal,
+  createProcessAttempt,
+  finishProcessAttempt,
+  getLatestProcessAttempt,
 } from '../state/execution-repository.js';
 import type { ExecutionRow } from '../state/execution-repository.js';
 import type { ClaudeCodeAdapter } from '../claude/adapter.js';
@@ -98,14 +101,37 @@ export class ExecutionService {
       }
     }
 
+    const latest = getLatestProcessAttempt(this.db, executionId);
+    const nextNumber = latest ? latest.attemptNumber + 1 : 1;
+    const attemptId = `attempt-${executionId}-${String(nextNumber)}`;
+
+    const persistedAttempt = createProcessAttempt(
+      this.db,
+      attemptId,
+      executionId,
+      nextNumber,
+      null,
+    );
+
+    const currentAttemptId = persistedAttempt.attemptId;
+
     const onExit = (attempt: ReturnType<ClaudeCodeAdapter['launch']>): void => {
       logDebug(`ExecutionService.onExit: ${executionId} exitCode=${String(attempt.exitCode)}`);
 
-      if (attempt.aborted) {
-        return;
-      }
       if (attempt.signal === 'awaiting_input') {
         transitionToAwaitingInput(this.db, executionId);
+        return;
+      }
+
+      finishProcessAttempt(
+        this.db,
+        currentAttemptId,
+        attempt.exitCode ?? -1,
+        attempt.timedOut,
+        attempt.aborted,
+      );
+
+      if (attempt.aborted) {
         return;
       }
       if (attempt.timedOut) {
@@ -126,7 +152,13 @@ export class ExecutionService {
       }
     };
 
-    this.adapter.launch(running, profile, onExit);
+    const adapterAttempt = this.adapter.launch(running, profile, onExit);
+
+    if (adapterAttempt.pid !== null) {
+      this.db
+        .prepare('UPDATE process_attempts SET pid = ? WHERE attempt_id = ?')
+        .run(adapterAttempt.pid, persistedAttempt.attemptId);
+    }
 
     return getExecution(this.db, executionId) ?? running;
   }

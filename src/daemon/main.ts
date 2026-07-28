@@ -140,7 +140,7 @@ function printBanner(ctx: AppContext): void {
     ctx.db.prepare('SELECT COUNT(*) AS count FROM jobs').get() as { count: number }
   ).count;
 
-  console.log(`HCO daemon 0.1.0 — H0C operational`);
+  console.log(`HCO daemon 2.0.0 — operational`);
   console.log(`  Data dir:     ${ctx.config.dataDir}`);
   console.log(`  Transport:    ${ctx.config.transport}`);
   console.log(`  Concurrency:  ${String(ctx.config.maxConcurrency)}`);

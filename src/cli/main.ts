@@ -30,7 +30,7 @@ function formatJob(row: {
 }
 
 function cmdStatus(ctx: AppContext): void {
-  console.log('HCO 0.1.0 — H0B operational foundation');
+  console.log('HCO 2.0.0');
 
   const db = requireDb(ctx);
 
@@ -71,7 +71,7 @@ function cmdStatus(ctx: AppContext): void {
 
   console.log(`\n  Sessions: ${String(sessionCount)}`);
 
-  console.log('\n  Foundation ready. Operational. Daemon-managed lifecycle active.');
+  console.log('\n  Execution pipeline active.');
 }
 
 function cmdJobs(ctx: AppContext): void {
@@ -237,7 +237,7 @@ export function runCli(ctxOrArgv: AppContext | string[], argv?: string[]): void 
     case 'help':
     case '--help':
     case '-h':
-      console.log('HCO 0.1.0 — H0B operational foundation');
+      console.log('HCO 2.0.0');
       console.log();
       console.log('Commands:');
       console.log('  hco status         Show HCO status and summary');

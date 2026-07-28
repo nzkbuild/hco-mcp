@@ -148,6 +148,49 @@ describe('Claude session persistence', () => {
     const { setSessionOutputs } = await import('../src/claude/session.js');
     assert.equal(setSessionOutputs(ctx.db, 'nonexistent', '/tmp/o', '/tmp/e'), false);
   });
+
+  it('isValidTransition validates all known transitions', async () => {
+    const { isValidTransition } = await import('../src/claude/session.js');
+
+    assert.equal(isValidTransition('start', 'running'), true);
+    assert.equal(isValidTransition('start', 'failed'), true);
+    assert.equal(isValidTransition('start', 'stopped'), true);
+    assert.equal(isValidTransition('start', 'exited'), false);
+    assert.equal(isValidTransition('start', 'archived'), false);
+
+    assert.equal(isValidTransition('running', 'exited'), true);
+    assert.equal(isValidTransition('running', 'failed'), true);
+    assert.equal(isValidTransition('running', 'stopped'), true);
+    assert.equal(isValidTransition('running', 'archived'), false);
+
+    assert.equal(isValidTransition('exited', 'archived'), true);
+    assert.equal(isValidTransition('exited', 'running'), false);
+    assert.equal(isValidTransition('archived', 'exited'), false);
+  });
+
+  it('setSessionCheckpointPath persists checkpoint path', async () => {
+    const { createSession, setSessionCheckpointPath, getSession } =
+      await import('../src/claude/session.js');
+
+    createSession(ctx.db, {
+      id: 'test-checkpoint',
+      repoOwner: 'alice',
+      repoName: 'demo',
+      repoPath: TEST_REPO_DIR,
+    });
+
+    const ok = setSessionCheckpointPath(ctx.db, 'test-checkpoint', '/tmp/checkpoint.json');
+    assert.equal(ok, true);
+
+    const s = getSession(ctx.db, 'test-checkpoint');
+    assert.ok(s);
+    assert.equal(s.checkpointPath, '/tmp/checkpoint.json');
+  });
+
+  it('setSessionCheckpointPath returns false for unknown session', async () => {
+    const { setSessionCheckpointPath } = await import('../src/claude/session.js');
+    assert.equal(setSessionCheckpointPath(ctx.db, 'nonexistent-checkpoint', '/tmp/cp.json'), false);
+  });
 });
 
 // ─── Blocker 1: Environment isolation ─────────────────────────────────────────
