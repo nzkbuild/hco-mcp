@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
-import { formatTelegramReport } from '../src/validation/telegram.js';
+import { formatTelegramReport } from '../src/integrations/telegram.js';
 
 describe('Telegram report formatter', () => {
   it('formats and redacts report', () => {
