@@ -24,3 +24,18 @@ export type { PolicySnapshotV1 as PolicySnapshotV1Type } from './policy-snapshot
 
 export { ProviderProfileV1 } from './provider-profile.js';
 export type { ProviderProfileV1 as ProviderProfileV1Type } from './provider-profile.js';
+
+export { ModelInfoV1 } from './model-info.js';
+export type { ModelInfoV1 as ModelInfoV1Type } from './model-info.js';
+
+export { ModelMappingV1, HCO_ROLE } from './model-mapping.js';
+export type { ModelMappingV1 as ModelMappingV1Type, HcoRole } from './model-mapping.js';
+
+export { PROVIDER_STATUS, isValidProviderTransition } from './provider-status.js';
+export type { ProviderStatus } from './provider-status.js';
+
+export type {
+  ProviderAdapter,
+  ProviderValidationResult,
+  ProviderHealthResult,
+} from './provider-adapter.js';

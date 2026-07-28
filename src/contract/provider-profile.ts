@@ -3,7 +3,7 @@ import { CONTRACT_VERSION } from './types.js';
 
 const ID_STRING = z.string().min(1).max(256);
 
-const PROVIDER_TYPE = z.enum(['anthropic']);
+const PROVIDER_TYPE = z.enum(['anthropic', 'openai', 'custom']);
 
 export const ProviderProfileV1 = z
   .object({
@@ -13,6 +13,7 @@ export const ProviderProfileV1 = z
     api_key_env: ID_STRING,
     base_url_env: ID_STRING.optional(),
     default_model: ID_STRING.optional(),
+    provider_metadata: z.record(z.string(), z.string()).optional(),
   })
   .strict();
 

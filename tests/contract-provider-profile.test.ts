@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { ProviderProfileV1 } from '../src/contract/provider-profile.js';
 
 describe('ProviderProfileV1', () => {
-  it('accepts valid minimal profile', () => {
+  it('accepts valid minimal anthropic profile', () => {
     const profile = ProviderProfileV1.parse({
       profile_id: 'test-profile',
       provider: 'anthropic',
@@ -13,6 +13,49 @@ describe('ProviderProfileV1', () => {
     assert.equal(profile.provider, 'anthropic');
     assert.equal(profile.api_key_env, 'ANTHROPIC_API_KEY');
     assert.equal(profile.schema_version, 1);
+  });
+
+  it('accepts openai provider type', () => {
+    const profile = ProviderProfileV1.parse({
+      profile_id: 'openai-profile',
+      provider: 'openai',
+      api_key_env: 'OPENAI_API_KEY',
+    });
+    assert.equal(profile.provider, 'openai');
+  });
+
+  it('accepts custom provider type', () => {
+    const profile = ProviderProfileV1.parse({
+      profile_id: 'custom-profile',
+      provider: 'custom',
+      api_key_env: 'CUSTOM_KEY',
+    });
+    assert.equal(profile.provider, 'custom');
+  });
+
+  it('rejects unknown provider types', () => {
+    assert.throws(
+      () =>
+        ProviderProfileV1.parse({
+          profile_id: 'p',
+          provider: 'unknown',
+          api_key_env: 'KEY',
+        }),
+      /provider/,
+    );
+  });
+
+  it('accepts optional provider_metadata', () => {
+    const profile = ProviderProfileV1.parse({
+      profile_id: 'meta-profile',
+      provider: 'anthropic',
+      api_key_env: 'KEY',
+      provider_metadata: { region: 'us-east', tier: 'enterprise' },
+    });
+    assert.deepEqual(profile.provider_metadata, {
+      region: 'us-east',
+      tier: 'enterprise',
+    });
   });
 
   it('accepts full profile with all optional fields', () => {
@@ -32,18 +75,6 @@ describe('ProviderProfileV1', () => {
     assert.throws(
       () => ProviderProfileV1.parse({ profile_id: 'p', provider: 'anthropic' }),
       /api_key_env/,
-    );
-  });
-
-  it('rejects invalid provider type', () => {
-    assert.throws(
-      () =>
-        ProviderProfileV1.parse({
-          profile_id: 'p',
-          provider: 'openai',
-          api_key_env: 'KEY',
-        }),
-      /provider/,
     );
   });
 
