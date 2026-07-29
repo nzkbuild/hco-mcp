@@ -1,7 +1,7 @@
 import type { AppContext } from '../../core/context.js';
 import type { SetupState } from '../state.js';
 import { saveSetupState } from '../state.js';
-import { confirm, hiddenInput, textInput, selectFromList } from '../prompts.js';
+import { confirm, hiddenInput, normalInput, readEnvCredentials, selectFromList } from '../prompts.js';
 import { redactForDisplay } from '../redact.js';
 import { ProviderService } from '../../provider/service.js';
 import type { ModelInfoV1 } from '../../contract/model-info.js';
@@ -32,17 +32,41 @@ export async function runProviderStage(
 
   // ─── 1. Credential input ────────────────────────────────────────────
 
-  const apiKey = await hiddenInput('\nEnter Anthropic API key: ');
-  if (!apiKey) {
-    console.log('No API key provided. Provider configuration skipped.');
-    state.stages.provider.status = 'skipped';
-    saveSetupState(ctx.config.dataDir, state);
-    return state;
-  }
+  let apiKey: string;
+  let resolvedBaseUrl: string;
 
-  console.log('API key accepted. It will be stored only in the protected environment file.\n');
-  const baseUrl = await textInput('Enter API base URL [https://api.anthropic.com]: ');
-  const resolvedBaseUrl = baseUrl || 'https://api.anthropic.com';
+  const tty = process.stdout.isTTY && process.stdin.isTTY;
+
+  if (tty) {
+    apiKey = await hiddenInput('\nEnter Anthropic API key: ');
+    if (!apiKey) {
+      console.log('No API key provided.');
+      state.stages.provider.status = 'failed';
+      state.state = 'failed';
+      saveSetupState(ctx.config.dataDir, state);
+      return state;
+    }
+
+    console.log('API key accepted. It will be stored only in the protected environment file.\n');
+    const baseUrl = await normalInput('Enter API base URL [https://api.anthropic.com]: ');
+    resolvedBaseUrl = baseUrl || 'https://api.anthropic.com';
+  } else {
+    const envCreds = readEnvCredentials();
+
+    if (!envCreds.apiKey) {
+      console.log(
+        'Set ANTHROPIC_API_KEY in the environment or run setup from an interactive terminal.',
+      );
+      state.stages.provider.status = 'failed';
+      state.state = 'failed';
+      saveSetupState(ctx.config.dataDir, state);
+      return state;
+    }
+
+    apiKey = envCreds.apiKey;
+    resolvedBaseUrl = envCreds.baseUrl ?? 'https://api.anthropic.com';
+    console.log('Credentials loaded from environment.');
+  }
 
   // ─── 2. Write hco.env ──────────────────────────────────────────────
 
@@ -257,7 +281,7 @@ export async function runProviderStage(
 
   // ─── 10. Concurrency ───────────────────────────────────────────────
 
-  const concurrencyInput = await textInput(
+  const concurrencyInput = await normalInput(
     `Maximum concurrent Claude jobs [${String(ctx.config.maxConcurrency)}]: `,
   );
   if (concurrencyInput) {
