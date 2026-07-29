@@ -44,6 +44,7 @@ describe('CLI foundation', () => {
       return;
     }
     const out = hco('help');
+    assert.ok(out.includes('setup'));
     assert.ok(out.includes('status'));
     assert.ok(out.includes('jobs'));
     assert.ok(out.includes('inspect'));

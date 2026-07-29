@@ -1,6 +1,48 @@
 # Changelog
 
-## 2.1.1
+## 2.1.2
+
+### Added
+
+- **Guided setup wizard** (`hco setup`): progressive linear onboarding that walks a first-time
+  user through connecting HCO to Hermes and Claude Code — local preflight, provider
+  configuration, and integration.
+- **Setup CLI commands**: `hco setup`, `hco setup --status`, `hco setup --continue`,
+  `hco setup --repair`, `hco setup --reset`.
+- **Credential lifecycle**: API keys stored only in `/root/.config/hermes/hco.env` (mode 0600,
+  directory 0700), referenced via `${ANTHROPIC_API_KEY}` interpolation in Hermes YAML; never
+  written to SQLite, setup state, logs, or environment output.
+- **Systemd EnvironmentFile drop-in**: automatic installation of
+  `/root/.config/systemd/user/hermes-gateway.service.d/hco-env.conf` so Hermes loads
+  provider credentials at startup.
+- **Provider validation during setup**: temporary process-env injection for single-shot
+  credential validation, restored after — no persistent env changes.
+- **Model discovery and mapping**: automatic model list, sorted selection
+  (sonnet/haiku/opus/fable), mapping recommendation and activation.
+- **Repository allowlist integration**: optional allowlist configuration with path validation
+  during the integration stage.
+- **Hermes MCP YAML management**: reads/writes `/root/.hermes/config.yaml` under
+  `mcp_servers.hco`, backs up before write, restores on failure, preserves unrelated keys.
+- **Setup state persistence**: `setup-state.json` tracks stage progression (local, provider,
+  integration), resume points, and terminal failures.
+- **Secret sanitization**: `src/setup/redact.ts` extends the existing MCP `sanitize()` with
+  env-file patterns — API keys, base URLs, and generic KEY/SECRET/TOKEN/PASSWORD assignments
+  are redacted from all setup output.
+- **Setup test suites**: 35 new tests covering state, redaction, Hermes YAML/env/drop-in,
+  provider registration, local preflight, secrets, CLI status, integration, and external module
+  validation.
+
+### Security
+
+- **No secrets in state**: setup-state.json, SQLite, YAML config, logs, and error messages
+  never contain raw API keys.
+- **Protected env file**: `hco.env` is 0600 with 0700 parent directory, verified via
+  `verifySecretFilePermissions()`.
+- **Safe Hermes YAML**: only `${ANTHROPIC_API_KEY}` and `${ANTHROPIC_BASE_URL}` variable
+  references are written — never raw values.
+
+---
+
 
 ### Fixed
 

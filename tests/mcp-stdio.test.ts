@@ -229,8 +229,16 @@ describe('MCP stdio smoke test (fake adapter)', () => {
     const text = content[0]?.text as string;
     const envelope = JSON.parse(text) as Record<string, unknown>;
     const data = (envelope.data ?? envelope) as Record<string, unknown>;
-    assert.equal(data.executionId ?? data.execution_id, jobId, `Expected status to reference ${jobId}`);
-    assert.equal(data.status, 'accepted', `Expected status "accepted", got "${String(data.status)}"`);
+    assert.equal(
+      data.executionId ?? data.execution_id,
+      jobId,
+      `Expected status to reference ${jobId}`,
+    );
+    assert.equal(
+      data.status,
+      'accepted',
+      `Expected status "accepted", got "${String(data.status)}"`,
+    );
   });
 
   it('calls hco_execution_cancel on the submitted job', async () => {

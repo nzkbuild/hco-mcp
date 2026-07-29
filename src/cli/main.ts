@@ -3,6 +3,7 @@ import type { AppContext } from '../core/context.js';
 import { createContext } from '../core/context.js';
 import { VERSION } from '../core/version.js';
 import type Database from 'better-sqlite3';
+import { runSetup, runContinue, runStatus, runRepair, runReset } from '../setup/wizard.js';
 
 function requireDb(ctx: AppContext): Database.Database {
   return ctx.db;
@@ -211,6 +212,35 @@ function cmdRecover(ctx: AppContext): void {
   }
 }
 
+// ─── Setup commands ────────────────────────────────────────────────────────
+
+async function cmdSetup(ctx: AppContext, args: string[]): Promise<void> {
+  const flag = args[1] ?? '';
+
+  switch (flag) {
+    case '--continue':
+      await runContinue(ctx);
+      break;
+    case '--status':
+      runStatus(ctx);
+      break;
+    case '--repair':
+      await runRepair(ctx);
+      break;
+    case '--reset':
+      runReset(ctx);
+      break;
+    case '':
+      // Start or continue
+      await runSetup(ctx);
+      break;
+    default:
+      console.log(`Unknown setup flag: ${flag}`);
+      console.log('Usage: hco setup [--continue|--status|--repair|--reset]');
+      process.exitCode = 1;
+  }
+}
+
 export function runCli(argv: string[]): void;
 export function runCli(ctx: AppContext, argv: string[]): void;
 export function runCli(ctxOrArgv: AppContext | string[], argv?: string[]): void {
@@ -228,12 +258,21 @@ export function runCli(ctxOrArgv: AppContext | string[], argv?: string[]): void 
 
   if (args.length === 0) {
     console.log('Usage: hco <command>');
-    console.log('Commands: status, jobs, inspect, pause, resume, recover');
+    console.log('Commands: setup, status, jobs, inspect, pause, resume, recover');
     console.log('Run "hco help" for details.');
     return;
   }
 
   const command = args[0] ?? '';
+
+  // Setup commands are async — delegate before the sync switch
+  if (command === 'setup') {
+    cmdSetup(ctx, args).catch((err: unknown) => {
+      console.error('Setup failed:', err instanceof Error ? err.message : String(err));
+      process.exit(1);
+    });
+    return;
+  }
 
   switch (command) {
     case 'help':
@@ -242,13 +281,18 @@ export function runCli(ctxOrArgv: AppContext | string[], argv?: string[]): void 
       console.log(`HCO ${VERSION}`);
       console.log();
       console.log('Commands:');
-      console.log('  hco status         Show HCO status and summary');
-      console.log('  hco jobs           List recorded jobs');
-      console.log('  hco inspect <job>  Show full job details');
-      console.log('  hco pause <job>    Pause a running job');
-      console.log('  hco resume <job>   Resume a paused job');
-      console.log('  hco recover        Reset stuck running jobs');
-      console.log('  hco --version      Print version and exit');
+      console.log('  hco setup            Start or continue HCO setup wizard');
+      console.log('  hco setup --status   Show setup state');
+      console.log('  hco setup --continue Resume incomplete setup');
+      console.log('  hco setup --repair   Inspect and repair configuration');
+      console.log('  hco setup --reset    Reset setup state');
+      console.log('  hco status           Show HCO status and summary');
+      console.log('  hco jobs             List recorded jobs');
+      console.log('  hco inspect <job>    Show full job details');
+      console.log('  hco pause <job>      Pause a running job');
+      console.log('  hco resume <job>     Resume a paused job');
+      console.log('  hco recover          Reset stuck running jobs');
+      console.log('  hco --version        Print version and exit');
       break;
 
     case '--version':

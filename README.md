@@ -56,6 +56,33 @@ Hermes              HCO                       Claude Code
 
 ## Setup
 
+### Quick start: guided wizard
+
+HCO ships with an interactive setup wizard that walks you through everything in one pass:
+
+```bash
+hco setup
+```
+
+The wizard runs three stages in order:
+
+1. **Local verification** — Node.js version, HCO, Claude Code, Hermes, SQLite, data directory, disk space. No network calls.
+2. **Provider configuration** — enter your Anthropic API key (hidden input), choose base URL, store credentials, register and validate the provider, discover and select models.
+3. **Integration** — set up repository allowlists, write the Hermes MCP YAML entry, restart the Hermes gateway, verify MCP connectivity.
+
+At any point you can interrupt and resume:
+
+```bash
+hco setup --continue    # resume from where you left off
+hco setup --status      # see what's done and what remains
+hco setup --repair      # inspect and fix incomplete stages
+hco setup --reset       # start completely fresh
+```
+
+**Credentials never leave protected files.** Your API key lives in three places only: the stdin buffer during input (process memory, seconds), `/root/.config/hermes/hco.env` (mode 0600), and the systemd EnvironmentFile block (process memory). It is never written to setup state, SQLite, Hermes YAML (only `${ANTHROPIC_API_KEY}` references), or any log or error output.
+
+### Manual setup (skip the wizard)
+
 ### 1. Install HCO
 
 ```bash
