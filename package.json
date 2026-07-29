@@ -1,10 +1,18 @@
 {
   "name": "hco-mcp",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "description": "Give your AI agent a memory. And a seatbelt.",
   "license": "MIT",
   "repository": "github:nzkbuild/hco-mcp",
-  "keywords": ["mcp", "mcp-server", "claude-code", "hermes", "ai-agent", "sqlite", "anthropic"],
+  "keywords": [
+    "mcp",
+    "mcp-server",
+    "claude-code",
+    "hermes",
+    "ai-agent",
+    "sqlite",
+    "anthropic"
+  ],
   "type": "module",
   "main": "dist/index.js",
   "bin": {
@@ -30,10 +38,12 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",
     "better-sqlite3": "^13.0.1",
+    "js-yaml": "^5.2.2",
     "zod": "^3.24.3"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.12",
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.14.0",
     "eslint": "^9.17.0",
     "prettier": "^3.5.1",

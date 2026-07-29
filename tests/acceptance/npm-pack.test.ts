@@ -51,8 +51,14 @@ function extractTarball(tarballPath: string, destDir: string): void {
   } catch {
     // Fallback: try with cygpath on Windows
     if (isWindows) {
-      const unixPath = execSync(`cygpath -u "${tarballPath}"`, { encoding: 'utf-8', timeout: 5000 }).trim();
-      const unixDest = execSync(`cygpath -u "${destDir}"`, { encoding: 'utf-8', timeout: 5000 }).trim();
+      const unixPath = execSync(`cygpath -u "${tarballPath}"`, {
+        encoding: 'utf-8',
+        timeout: 5000,
+      }).trim();
+      const unixDest = execSync(`cygpath -u "${destDir}"`, {
+        encoding: 'utf-8',
+        timeout: 5000,
+      }).trim();
       execSync(`tar -xzf "${unixPath}" --strip-components=1 -C "${unixDest}"`, {
         encoding: 'utf-8',
         timeout: 10000,
@@ -96,19 +102,16 @@ describe('npm-pack acceptance', () => {
     const extractDir = mkdtempSync(join(tmpdir(), 'hco-list-'));
     try {
       extractTarball(tarballPath, extractDir);
-      const entrypoints = [
-        'dist/cli/main.js',
-        'dist/daemon/main.js',
-        'dist/index.js',
-      ];
+      const entrypoints = ['dist/cli/main.js', 'dist/daemon/main.js', 'dist/index.js'];
       for (const entry of entrypoints) {
-        assert.ok(
-          existsSync(join(extractDir, entry)),
-          `Tarball missing ${entry}`,
-        );
+        assert.ok(existsSync(join(extractDir, entry)), `Tarball missing ${entry}`);
       }
     } finally {
-      try { rmSync(extractDir, { recursive: true, force: true }); } catch { /* cleanup */ }
+      try {
+        rmSync(extractDir, { recursive: true, force: true });
+      } catch {
+        /* cleanup */
+      }
     }
   });
 
@@ -124,7 +127,11 @@ describe('npm-pack acceptance', () => {
         );
       }
     } finally {
-      try { rmSync(extractDir, { recursive: true, force: true }); } catch { /* cleanup */ }
+      try {
+        rmSync(extractDir, { recursive: true, force: true });
+      } catch {
+        /* cleanup */
+      }
     }
   });
 
@@ -137,7 +144,11 @@ describe('npm-pack acceptance', () => {
       };
       assert.equal(pkgJson.version, pkgVersion, 'Tarball version mismatch');
     } finally {
-      try { rmSync(extractDir, { recursive: true, force: true }); } catch { /* cleanup */ }
+      try {
+        rmSync(extractDir, { recursive: true, force: true });
+      } catch {
+        /* cleanup */
+      }
     }
   });
 
@@ -183,14 +194,7 @@ describe('npm-pack acceptance', () => {
     if (isWindows) {
       // On Windows, npm creates .cmd wrappers. Check the actual .js file
       // inside the installed node_modules tree.
-      const daemonJs = join(
-        prefix,
-        'node_modules',
-        'hco-mcp',
-        'dist',
-        'daemon',
-        'main.js',
-      );
+      const daemonJs = join(prefix, 'node_modules', 'hco-mcp', 'dist', 'daemon', 'main.js');
       assert.ok(existsSync(daemonJs), `hco-daemon .js not found at ${daemonJs}`);
       const head = readFileSync(daemonJs, 'utf-8').slice(0, 20);
       assert.ok(
@@ -218,10 +222,7 @@ describe('npm-pack acceptance', () => {
     const cfgFile = join(prefix, 'hco-data', 'hco.json');
     if (existsSync(cfgFile)) {
       const cfg = JSON.parse(readFileSync(cfgFile, 'utf-8')) as Record<string, unknown>;
-      assert.ok(
-        !cfg.ANTHROPIC_API_KEY,
-        'Provider credentials should not be in test config',
-      );
+      assert.ok(!cfg.ANTHROPIC_API_KEY, 'Provider credentials should not be in test config');
     }
     const dbFile = join(dataDir, 'hco.db');
     assert.ok(existsSync(dbFile), 'SQLite database should exist');
