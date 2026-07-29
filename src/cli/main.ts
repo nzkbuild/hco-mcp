@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { fileURLToPath } from 'node:url';
 import type { AppContext } from '../core/context.js';
 import { createContext } from '../core/context.js';
 import { VERSION } from '../core/version.js';
@@ -347,10 +348,7 @@ export function runCli(ctxOrArgv: AppContext | string[], argv?: string[]): void 
 }
 
 function isMain(meta: ImportMeta): boolean {
-  return (
-    meta.url === `file://${String(process.argv[1])}` ||
-    (process.argv[1]?.replaceAll('\\', '/').endsWith('/cli/main.js') ?? false)
-  );
+  return fileURLToPath(meta.url).replaceAll('\\', '/').endsWith('/cli/main.js');
 }
 
 if (isMain(import.meta)) {

@@ -1,6 +1,6 @@
 {
   "name": "hco-mcp",
-  "version": "2.1.3",
+  "version": "2.1.5",
   "description": "Give your AI agent a memory. And a seatbelt.",
   "license": "MIT",
   "repository": "github:nzkbuild/hco-mcp",
