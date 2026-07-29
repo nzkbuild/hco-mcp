@@ -19,7 +19,7 @@ import { redact, redactForDisplay } from '../src/setup/redact.js';
 import {
   confirm,
   hiddenInput,
-  textInput,
+  normalInput,
   selectFromList,
   displayProgress,
 } from '../src/setup/prompts.js';
@@ -64,7 +64,7 @@ describe('Setup module exports', () => {
   it('prompts module exports interaction functions', () => {
     assert.equal(typeof confirm, 'function');
     assert.equal(typeof hiddenInput, 'function');
-    assert.equal(typeof textInput, 'function');
+    assert.equal(typeof normalInput, 'function');
     assert.equal(typeof selectFromList, 'function');
     assert.equal(typeof displayProgress, 'function');
   });
