@@ -7,20 +7,15 @@
 
 <h1 align="center">Hermes Claude Operator</h1>
 
-<p align="center">
-  <strong>Hermes plans. Claude Code builds. HCO runs the operation.</strong>
-</p>
+<p align="center"><strong>Hermes plans. Claude Code builds. HCO runs the operation.</strong></p>
 
-<p align="center">
-  The execution layer between Hermes Agent and Claude Code.
-</p>
+<p align="center">The execution layer between Hermes Agent and Claude Code.</p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/hco-mcp"><img alt="npm version" src="https://img.shields.io/npm/v/hco-mcp"></a>
   <a href="https://nodejs.org/"><img alt="Node.js 22 or newer" src="https://img.shields.io/badge/node-%3E%3D22-339933?logo=node.js&logoColor=white"></a>
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
   <a href="https://github.com/nzkbuild/hco-mcp/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/nzkbuild/hco-mcp?style=social"></a>
-  <a href="https://www.npmjs.com/package/hco-mcp"><img alt="npm monthly downloads" src="https://img.shields.io/npm/dm/hco-mcp"></a>
 </p>
 
 ```bash
