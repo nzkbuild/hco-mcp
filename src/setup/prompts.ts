@@ -116,6 +116,23 @@ export function normalInput(prompt: string): Promise<string> {
   });
 }
 
+export interface EnvCredentials {
+  apiKey: string | null;
+  baseUrl: string | null;
+}
+
+/**
+ * Read ANTHROPIC_API_KEY and ANTHROPIC_BASE_URL from process.env.
+ * For non-interactive (non-TTY) environments.
+ * Never prints the values. Never logs the values.
+ */
+export function readEnvCredentials(): EnvCredentials {
+  return {
+    apiKey: process.env.ANTHROPIC_API_KEY ?? null,
+    baseUrl: process.env.ANTHROPIC_BASE_URL ?? null,
+  };
+}
+
 export interface SelectOption {
   label: string;
   value: string;
