@@ -90,12 +90,15 @@ export function hiddenInput(prompt: string): Promise<string> {
 }
 
 /**
- * Read a visible text line. For non-secret input like file paths.
+ * Read a visible text line. For non-secret input like URLs or file paths.
  * Unlike hiddenInput, the user sees what they type.
+ *
+ * Uses readline.question() so paste, backspace, and line editing
+ * work like a normal text field.
  */
-export function textInput(prompt: string): Promise<string> {
+export function normalInput(prompt: string): Promise<string> {
   if (!isTTY()) {
-    throw new Error('Text input requires an interactive terminal.');
+    throw new Error('Normal input requires an interactive terminal.');
   }
 
   return new Promise((resolve) => {
