@@ -1,3 +1,6 @@
+# Packed tarballs
+*.tgz
+
 # Dev artifacts — keep the tarball clean
 .akar/
 .claude/
