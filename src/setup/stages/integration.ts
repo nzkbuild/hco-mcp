@@ -2,6 +2,7 @@ import type { AppContext } from '../../core/context.js';
 import type { SetupState } from '../state.js';
 import { saveSetupState } from '../state.js';
 import { confirm, textInput, displayProgress, type ProgressItem } from '../prompts.js';
+import { VERSION } from '../../core/version.js';
 import { redactForDisplay } from '../redact.js';
 import {
   writeMCPEntry,
@@ -190,7 +191,7 @@ export async function runIntegrationStage(
   saveSetupState(ctx.config.dataDir, state);
 
   console.log('══ HCO setup complete ══\n');
-  console.log('✓ HCO 2.1.2');
+  console.log(`✓ HCO ${VERSION}`);
   console.log(`✓ Node.js ${process.version}`);
   console.log('✓ HCO data directory ready');
   console.log('✓ SQLite writable');
