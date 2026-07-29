@@ -41,7 +41,7 @@ export async function runProviderStage(
   }
 
   console.log('API key accepted. It will be stored only in the protected environment file.\n');
-  const baseUrl = await hiddenInput('Enter API base URL [https://api.anthropic.com]: ');
+  const baseUrl = await textInput('Enter API base URL [https://api.anthropic.com]: ');
   const resolvedBaseUrl = baseUrl || 'https://api.anthropic.com';
 
   // ─── 2. Write hco.env ──────────────────────────────────────────────

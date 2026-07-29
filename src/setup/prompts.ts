@@ -63,23 +63,28 @@ export function hiddenInput(prompt: string): Promise<string> {
     }
     let buf = '';
     const onData = (chunk: Buffer) => {
-      const char = chunk.toString('utf-8');
-      if (char === '\r' || char === '\n') {
-        process.stdout.write('\n');
-        cleanup();
-        resolve(buf);
-      } else if (char === '\x03') {
-        process.stdout.write('\n');
-        cleanup();
-        process.exit(130);
-      } else if (char === '\x7f' || char === '\b') {
-        if (buf.length > 0) {
-          buf = buf.slice(0, -1);
-          process.stdout.write('\b \b');
+      const str = chunk.toString('utf-8');
+      // Handle paste / multi-character chunks — iterate each character
+      // so each keystroke (or batch-pasted char) gets one '*'.
+      for (const char of str) {
+        if (char === '\r' || char === '\n') {
+          process.stdout.write('\n');
+          cleanup();
+          resolve(buf);
+          return;
+        } else if (char === '\x03') {
+          process.stdout.write('\n');
+          cleanup();
+          process.exit(130);
+        } else if (char === '\x7f' || char === '\b') {
+          if (buf.length > 0) {
+            buf = buf.slice(0, -1);
+            process.stdout.write('\b \b');
+          }
+        } else {
+          buf += char;
+          process.stdout.write('*');
         }
-      } else {
-        buf += char;
-        process.stdout.write('*');
       }
     };
     const cleanup = () => {
