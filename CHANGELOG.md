@@ -1,5 +1,78 @@
 # Changelog
 
+## 2.1.1
+
+### Fixed
+
+- **Missing shebangs**: `hco` and `hco-daemon` binaries lacked `#!/usr/bin/env node`,
+  causing shell syntax errors on Linux installs.
+- **Version mismatch**: CLI and daemon hardcoded `2.0.0` while `package.json` read `2.1.0`.
+- **Unsafe concurrency default**: `maxConcurrency` defaulted to 4; changed to 1 for
+  safe first-time use.
+- **Missing Claude diagnostics**: `MissingClaudeError` now provides a clear message with
+  install link when the `claude` binary is absent.
+- **Runner stream durability**: `pendingStreams` tracking ensures both stdout and stderr
+  finalize before delivering results.
+
+### Added
+
+- **`--version` / `-v` flag** on the CLI.
+- **Centralized version**: `src/core/version.ts` reads from `package.json` at runtime
+  — single source of truth for CLI, daemon, and MCP server.
+- **npm-pack acceptance test** (13 tests): validates the tarball as users receive it —
+  entrypoints, shebangs, install, CLI commands, SQLite creation.
+- **MCP stdio smoke test** (6 tests): full JSON-RPC handshake, tool listing, execution
+  submit/status/cancel lifecycle over stdio transport.
+- **`.npmignore`**: excludes `src/`, `tests/`, and git metadata from the published tarball.
+
+### Changed
+
+- **README**: rewritten setup section with step-by-step install, verify, configure, and
+  connect instructions.
+- **Identity**: "Hermes Code Operator" → "Hermes Claude Operator" across all docs.
+
+---
+
+## 2.1.0
+
+### Added
+
+- **Execution Contract v1**: `ExecutionRequest`, `ClaudeConfiguration`, `ExecutionResult`,
+  `ExecutionProfile`, `PolicySnapshot` — stable Zod schemas with bounded validation.
+- **Immutable execution persistence**: `executions` and `execution_events` tables
+  (migrations v7-v10) with append-only event log and idempotency guarantees.
+- **State machine**: validated transitions from `accepted` through `queued`, `running`,
+  terminal states, and `awaiting_input`.
+- **ExecutionService**: decouples MCP handlers from process launch. Supports `submit`,
+  `start`, `getStatus`, `getResult`, `wait`, `cancel`, `continue`.
+- **ClaudeCodeAdapter**: abstract interface with `FakeClaudeCodeAdapter` (tests) and
+  `SpawnAdapter` (real Claude Code).
+- **ProcessAttempt persistence**: every real launch records start, end, exit code, pid,
+  and outcome in the database.
+- **Execution queue**: FIFO with lease-based claiming, timeout enforcement, and
+  expired-lease recovery.
+- **ArtifactStorage**: four-tier size enforcement (inline, chunk, per-artifact,
+  per-execution) with chunked BLOB storage.
+- **7 execution MCP tools**: `hco_execution_submit`, `start`, `status`, `wait`, `cancel`,
+  `result`, `continue`, `artifact`.
+- **Provider profiles**: env-var references only, no DB-stored secrets. Anthropic
+  provider adapter.
+- **Post-Claude validation**: `quick`/`standard`/`strict` profiles running
+  build/test/lint/format/diff-check.
+- **Workspace management**: isolated workspace persistence with `WorkspaceRepository`
+  and `WorkspaceService`, plus MCP workspace operations with execution binding.
+- **Health check framework**: systematic `hco_health` diagnostic tool.
+- **Execution statistics**: aggregate stats for operational intelligence.
+
+### Changed
+
+- **Legacy tools deprecated**: `hco_session_*`, `hco_task_*`, `hco_status`, `hco_list_jobs`,
+  `hco_inspect_job`, `hco_list_milestones` emit deprecation warnings.
+- **Architecture**: MCP handlers no longer directly spawn Claude processes. Execution
+  flows through `ExecutionService → ExecutionRepository → ClaudeCodeAdapter`.
+
+---
+
 ## 2.0.0
 
 ### Breaking Changes
