@@ -51,9 +51,11 @@ export function hiddenInput(prompt: string): Promise<string> {
   }
 
   return new Promise((resolve) => {
-    // Re-ref stdin — readline.close() unrefs it, which would let the
-    // process exit before we read any input.
+    // Re-ref and resume stdin — readline.close() unrefs the handle AND
+    // removes its 'data' listener, which pauses the stream.  Without resume(),
+    // a new 'data' listener on a paused stream never fires.
     process.stdin.ref();
+    process.stdin.resume();
     process.stdout.write(prompt);
     const wasRaw = process.stdin.isRaw;
     if (!wasRaw) {
@@ -101,6 +103,7 @@ export function textInput(prompt: string): Promise<string> {
 
   return new Promise((resolve) => {
     process.stdin.ref();
+    process.stdin.resume();
     const rl = createInterface({
       input: process.stdin,
       output: process.stdout,
@@ -134,6 +137,7 @@ export function selectFromList(
   }
 
   return new Promise((resolve) => {
+    process.stdin.resume();
     console.log(`\n${title}`);
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
