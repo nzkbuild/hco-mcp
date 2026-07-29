@@ -1,9 +1,12 @@
 {
   "name": "hco-mcp",
-"version": "2.1.6"
+  "version": "2.1.6",
   "description": "Give your AI agent a memory. And a seatbelt.",
   "license": "MIT",
-  "repository": "github:nzkbuild/hco-mcp",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nzkbuild/hco-mcp.git"
+  },
   "keywords": [
     "mcp",
     "mcp-server",
@@ -16,8 +19,8 @@
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "hco": "./dist/cli/main.js",
-    "hco-daemon": "./dist/daemon/main.js"
+    "hco": "dist/cli/main.js",
+    "hco-daemon": "dist/daemon/main.js"
   },
   "scripts": {
     "build": "tsc",
