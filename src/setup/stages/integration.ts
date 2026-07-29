@@ -1,7 +1,7 @@
 import type { AppContext } from '../../core/context.js';
 import type { SetupState } from '../state.js';
 import { saveSetupState } from '../state.js';
-import { confirm, hiddenInput, displayProgress, type ProgressItem } from '../prompts.js';
+import { confirm, textInput, displayProgress, type ProgressItem } from '../prompts.js';
 import { redactForDisplay } from '../redact.js';
 import {
   writeMCPEntry,
@@ -38,7 +38,7 @@ export async function runIntegrationStage(
 
   const addRepo = await confirm('Add a repository now?', true);
   if (addRepo) {
-    const repoPath = await hiddenInput('\nEnter absolute repository path: ');
+    const repoPath = await textInput('\nEnter absolute repository path: ');
     if (repoPath) {
       try {
         const validated = validateRepoPath(repoPath);

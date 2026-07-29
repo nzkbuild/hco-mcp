@@ -1,7 +1,7 @@
 import type { AppContext } from '../../core/context.js';
 import type { SetupState } from '../state.js';
 import { saveSetupState } from '../state.js';
-import { confirm, hiddenInput, selectFromList } from '../prompts.js';
+import { confirm, hiddenInput, textInput, selectFromList } from '../prompts.js';
 import { redactForDisplay } from '../redact.js';
 import { ProviderService } from '../../provider/service.js';
 import type { ModelInfoV1 } from '../../contract/model-info.js';
@@ -257,9 +257,22 @@ export async function runProviderStage(
 
   // ─── 10. Concurrency ───────────────────────────────────────────────
 
-  console.log(
-    `Maximum concurrent Claude jobs [${String(ctx.config.maxConcurrency)}]: (press Enter for default)`,
+  const concurrencyInput = await textInput(
+    `Maximum concurrent Claude jobs [${String(ctx.config.maxConcurrency)}]: `,
   );
+  if (concurrencyInput) {
+    const parsed = parseInt(concurrencyInput, 10);
+    if (parsed > 0) {
+      ctx.config.maxConcurrency = parsed;
+      console.log(`Concurrency set to ${String(parsed)}`);
+      if (parsed > 1) {
+        console.log(
+          '⚠ Concurrency > 1 may cause rate limiting or provider cost spikes.',
+        );
+      }
+    }
+  }
+
   state.stages.provider.status = 'complete';
   state.state = 'provider_configured';
   saveSetupState(ctx.config.dataDir, state);

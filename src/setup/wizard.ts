@@ -41,15 +41,19 @@ export async function runSetup(
 
   // If partial setup exists, offer to resume
   if (state.state !== 'not_started') {
-    console.log('An incomplete HCO setup was found.\n');
-    console.log('Completed:');
-    for (const phase of ['local', 'provider', 'integration'] as const) {
-      const stage = state.stages[phase];
-      if (stage.status === 'complete') {
+    const completedPhases = (['local', 'provider', 'integration'] as const).filter(
+      (phase) => state.stages[phase].status === 'complete',
+    );
+    if (completedPhases.length > 0) {
+      console.log('An incomplete HCO setup was found.\n');
+      console.log('Completed:');
+      for (const phase of completedPhases) {
         console.log(`  ✓ ${phase}`);
       }
+      console.log('');
+    } else {
+      console.log('An incomplete HCO setup was found.\n');
     }
-    console.log('');
     const resume = await confirm('Resume setup?', true);
     if (resume) {
       return runContinue(ctx, opts);

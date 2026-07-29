@@ -16,7 +16,7 @@ import {
   freshStages,
 } from '../src/setup/state.js';
 import { redact, redactForDisplay } from '../src/setup/redact.js';
-import { confirm, hiddenInput, selectFromList, displayProgress } from '../src/setup/prompts.js';
+import { confirm, hiddenInput, textInput, selectFromList, displayProgress } from '../src/setup/prompts.js';
 import {
   readConfig,
   writeMCPEntry,
@@ -58,6 +58,7 @@ describe('Setup module exports', () => {
   it('prompts module exports interaction functions', () => {
     assert.equal(typeof confirm, 'function');
     assert.equal(typeof hiddenInput, 'function');
+    assert.equal(typeof textInput, 'function');
     assert.equal(typeof selectFromList, 'function');
     assert.equal(typeof displayProgress, 'function');
   });

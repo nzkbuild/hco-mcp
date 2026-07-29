@@ -1,7 +1,7 @@
 import { createInterface } from 'node:readline';
 
 function isTTY(): boolean {
-  return process.stdout.isTTY;
+  return process.stdout.isTTY && process.stdin.isTTY;
 }
 
 /**
@@ -51,6 +51,9 @@ export function hiddenInput(prompt: string): Promise<string> {
   }
 
   return new Promise((resolve) => {
+    // Re-ref stdin — readline.close() unrefs it, which would let the
+    // process exit before we read any input.
+    process.stdin.ref();
     process.stdout.write(prompt);
     const wasRaw = process.stdin.isRaw;
     if (!wasRaw) {
@@ -84,6 +87,29 @@ export function hiddenInput(prompt: string): Promise<string> {
       }
     };
     process.stdin.on('data', onData);
+  });
+}
+
+/**
+ * Read a visible text line. For non-secret input like file paths.
+ * Unlike hiddenInput, the user sees what they type.
+ */
+export function textInput(prompt: string): Promise<string> {
+  if (!isTTY()) {
+    throw new Error('Text input requires an interactive terminal.');
+  }
+
+  return new Promise((resolve) => {
+    process.stdin.ref();
+    const rl = createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    });
+
+    rl.question(prompt, (answer: string) => {
+      rl.close();
+      resolve(answer.trim());
+    });
   });
 }
 
