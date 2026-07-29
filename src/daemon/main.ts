@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { fileURLToPath } from 'node:url';
 import { connect } from 'node:net';
 import type { AppContext } from '../core/context.js';
 import type { JobRow } from '../jobs/service.js';
@@ -154,10 +155,7 @@ function printBanner(ctx: AppContext): void {
 // ─── Entrypoint guard ───────────────────────────────────────────────────────────
 
 function isMain(meta: ImportMeta): boolean {
-  return (
-    meta.url === `file://${String(process.argv[1])}` ||
-    (process.argv[1]?.endsWith('/daemon/main.js') ?? false)
-  );
+  return fileURLToPath(meta.url).replaceAll('\\', '/').endsWith('/daemon/main.js');
 }
 
 if (isMain(import.meta)) {
