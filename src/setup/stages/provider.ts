@@ -1,7 +1,13 @@
 import type { AppContext } from '../../core/context.js';
 import type { SetupState } from '../state.js';
 import { saveSetupState } from '../state.js';
-import { confirm, hiddenInput, normalInput, readEnvCredentials, selectFromList } from '../prompts.js';
+import {
+  confirm,
+  hiddenInput,
+  normalInput,
+  readEnvCredentials,
+  selectFromList,
+} from '../prompts.js';
 import { redactForDisplay } from '../redact.js';
 import { ProviderService } from '../../provider/service.js';
 import type { ModelInfoV1 } from '../../contract/model-info.js';
@@ -290,9 +296,7 @@ export async function runProviderStage(
       ctx.config.maxConcurrency = parsed;
       console.log(`Concurrency set to ${String(parsed)}`);
       if (parsed > 1) {
-        console.log(
-          '⚠ Concurrency > 1 may cause rate limiting or provider cost spikes.',
-        );
+        console.log('⚠ Concurrency > 1 may cause rate limiting or provider cost spikes.');
       }
     }
   }

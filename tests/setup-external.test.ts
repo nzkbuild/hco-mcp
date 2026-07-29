@@ -16,7 +16,13 @@ import {
   freshStages,
 } from '../src/setup/state.js';
 import { redact, redactForDisplay } from '../src/setup/redact.js';
-import { confirm, hiddenInput, textInput, selectFromList, displayProgress } from '../src/setup/prompts.js';
+import {
+  confirm,
+  hiddenInput,
+  textInput,
+  selectFromList,
+  displayProgress,
+} from '../src/setup/prompts.js';
 import {
   readConfig,
   writeMCPEntry,

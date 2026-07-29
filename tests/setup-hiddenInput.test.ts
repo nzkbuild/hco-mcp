@@ -10,10 +10,9 @@ describe('hiddenInput', () => {
     process.stdin.isTTY = false;
 
     try {
-      assert.throws(
-        () => { hiddenInput('Key: '); },
-        /Hidden input requires an interactive terminal/,
-      );
+      assert.throws(() => {
+        hiddenInput('Key: ');
+      }, /Hidden input requires an interactive terminal/);
     } finally {
       process.stdout.isTTY = origStdout;
       process.stdin.isTTY = origStdin;

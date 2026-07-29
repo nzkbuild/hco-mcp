@@ -66,8 +66,12 @@ export function hiddenInput(prompt: string): Promise<string> {
 
     // Override output to mask typed characters with '*'.
     // _writeToOutput is a private readline API — not on the public type.
-    const origWrite = (rl as unknown as { _writeToOutput: (s: string) => void })._writeToOutput.bind(rl);
-    (rl as unknown as { _writeToOutput: (s: string) => void })._writeToOutput = function (s: string) {
+    const origWrite = (
+      rl as unknown as { _writeToOutput: (s: string) => void }
+    )._writeToOutput.bind(rl);
+    (rl as unknown as { _writeToOutput: (s: string) => void })._writeToOutput = function (
+      s: string,
+    ) {
       // The prompt and any control output pass through unmasked.
       // User-typed content (anything after the prompt) is masked.
       // Readline calls _writeToOutput for every keystroke via its

@@ -15,10 +15,9 @@ describe('normalInput', () => {
     process.stdin.isTTY = false;
 
     try {
-      assert.throws(
-        () => { normalInput('Test: '); },
-        /requires an interactive terminal/,
-      );
+      assert.throws(() => {
+        normalInput('Test: ');
+      }, /requires an interactive terminal/);
     } finally {
       process.stdout.isTTY = origStdout;
       process.stdin.isTTY = origStdin;
