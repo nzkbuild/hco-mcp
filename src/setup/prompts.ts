@@ -41,6 +41,11 @@ export function confirm(question: string, defaultYes = false): Promise<boolean> 
 /**
  * Read a secret value without echoing characters.
  * Shows '*' for each typed character.
+ *
+ * Uses readline (not raw mode) so paste, backspace, and line editing
+ * work like a normal text field.  Raw mode breaks paste because the
+ * terminal sends Ctrl+V as literal \\x16 instead of injecting the
+ * clipboard content.
  */
 export function hiddenInput(prompt: string): Promise<string> {
   if (!isTTY()) {
@@ -51,49 +56,36 @@ export function hiddenInput(prompt: string): Promise<string> {
   }
 
   return new Promise((resolve) => {
-    // Re-ref and resume stdin — readline.close() unrefs the handle AND
-    // removes its 'data' listener, which pauses the stream.  Without resume(),
-    // a new 'data' listener on a paused stream never fires.
     process.stdin.ref();
     process.stdin.resume();
-    process.stdout.write(prompt);
-    const wasRaw = process.stdin.isRaw;
-    if (!wasRaw) {
-      process.stdin.setRawMode(true);
-    }
-    let buf = '';
-    const onData = (chunk: Buffer) => {
-      const str = chunk.toString('utf-8');
-      // Handle paste / multi-character chunks — iterate each character
-      // so each keystroke (or batch-pasted char) gets one '*'.
-      for (const char of str) {
-        if (char === '\r' || char === '\n') {
-          process.stdout.write('\n');
-          cleanup();
-          resolve(buf);
-          return;
-        } else if (char === '\x03') {
-          process.stdout.write('\n');
-          cleanup();
-          process.exit(130);
-        } else if (char === '\x7f' || char === '\b') {
-          if (buf.length > 0) {
-            buf = buf.slice(0, -1);
-            process.stdout.write('\b \b');
-          }
-        } else {
-          buf += char;
-          process.stdout.write('*');
-        }
+    const rl = createInterface({
+      input: process.stdin,
+      output: process.stdout,
+      terminal: true,
+    });
+
+    // Override output to mask typed characters with '*'.
+    // _writeToOutput is a private readline API — not on the public type.
+    const origWrite = (rl as unknown as { _writeToOutput: (s: string) => void })._writeToOutput.bind(rl);
+    (rl as unknown as { _writeToOutput: (s: string) => void })._writeToOutput = function (s: string) {
+      // The prompt and any control output pass through unmasked.
+      // User-typed content (anything after the prompt) is masked.
+      // Readline calls _writeToOutput for every keystroke via its
+      // internal _refreshLine, so we intercept character-by-character.
+      if (s === prompt || s === '\n' || s === '\r\n' || s === '*' || s === '\r') {
+        origWrite(s);
+      } else {
+        origWrite('*'.repeat(s.length));
       }
     };
-    const cleanup = () => {
-      process.stdin.removeListener('data', onData);
-      if (!wasRaw) {
-        process.stdin.setRawMode(false);
-      }
-    };
-    process.stdin.on('data', onData);
+
+    rl.question(prompt, (answer) => {
+      rl.close();
+      // readline appends '\n' when terminal:true and the user hits Enter,
+      // but the prompt already ended with a newline from the question itself.
+      // No extra newline needed — just resolve.
+      resolve(answer);
+    });
   });
 }
 
