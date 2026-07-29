@@ -1,13 +1,17 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { rmSync, existsSync, mkdirSync } from 'node:fs';
+import { rmSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { createRequire } from 'node:module';
 
 const CLI = resolve(import.meta.dirname, '../dist/cli/main.js');
+const DAEMON = resolve(import.meta.dirname, '../dist/daemon/main.js');
 const TEST_DATA_DIR = join(tmpdir(), 'hco-test-cli');
+const pkgVersion = (createRequire(import.meta.url)('../package.json') as { version: string })
+  .version;
 
 function hco(args: string): string {
   return execSync(`node ${CLI} ${args}`, {
@@ -129,5 +133,54 @@ describe('CLI foundation', () => {
     }
     const out = hco('recover');
     assert.ok(out.includes('Recovered 0'));
+  });
+
+  it('dist/cli/main.js has Node shebang', function shebangCliTest(this: unknown) {
+    if (!existsSync(CLI)) {
+      (this as { skip: () => void }).skip();
+      return;
+    }
+    const head = readFileSync(CLI, 'utf-8').slice(0, 20);
+    assert.ok(
+      head.startsWith('#!/usr/bin/env node'),
+      `Expected shebang, got: ${head.slice(0, 20)}`,
+    );
+  });
+
+  it('dist/daemon/main.js has Node shebang', function shebangDaemonTest(this: unknown) {
+    if (!existsSync(DAEMON)) {
+      (this as { skip: () => void }).skip();
+      return;
+    }
+    const head = readFileSync(DAEMON, 'utf-8').slice(0, 20);
+    assert.ok(
+      head.startsWith('#!/usr/bin/env node'),
+      `Expected shebang, got: ${head.slice(0, 20)}`,
+    );
+  });
+
+  it('hco --version reports package version', function versionTest(this: unknown) {
+    if (!existsSync(CLI)) {
+      (this as { skip: () => void }).skip();
+      return;
+    }
+    const out = hco('help');
+    assert.ok(
+      out.includes(`HCO ${pkgVersion}`),
+      `Expected version ${pkgVersion}, got: ${out.slice(0, 60)}`,
+    );
+  });
+
+  it('hco status reports package version', function statusVersionTest(this: unknown) {
+    if (!existsSync(CLI)) {
+      (this as { skip: () => void }).skip();
+      return;
+    }
+    const out = hco('status');
+    const firstLine = out.split('\n')[0] ?? '(empty)';
+    assert.ok(
+      out.includes(`HCO ${pkgVersion}`),
+      `Expected version ${pkgVersion} in status, got first line: ${firstLine}`,
+    );
   });
 });

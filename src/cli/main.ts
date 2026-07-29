@@ -1,5 +1,7 @@
+#!/usr/bin/env node
 import type { AppContext } from '../core/context.js';
 import { createContext } from '../core/context.js';
+import { VERSION } from '../core/version.js';
 import type Database from 'better-sqlite3';
 
 function requireDb(ctx: AppContext): Database.Database {
@@ -30,7 +32,7 @@ function formatJob(row: {
 }
 
 function cmdStatus(ctx: AppContext): void {
-  console.log('HCO 2.0.0');
+  console.log(`HCO ${VERSION}`);
 
   const db = requireDb(ctx);
 
@@ -237,7 +239,7 @@ export function runCli(ctxOrArgv: AppContext | string[], argv?: string[]): void 
     case 'help':
     case '--help':
     case '-h':
-      console.log('HCO 2.0.0');
+      console.log(`HCO ${VERSION}`);
       console.log();
       console.log('Commands:');
       console.log('  hco status         Show HCO status and summary');
@@ -246,6 +248,12 @@ export function runCli(ctxOrArgv: AppContext | string[], argv?: string[]): void 
       console.log('  hco pause <job>    Pause a running job');
       console.log('  hco resume <job>   Resume a paused job');
       console.log('  hco recover        Reset stuck running jobs');
+      console.log('  hco --version      Print version and exit');
+      break;
+
+    case '--version':
+    case '-v':
+      console.log(`HCO ${VERSION}`);
       break;
 
     case 'status':

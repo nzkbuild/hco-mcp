@@ -59,7 +59,7 @@ export const HcoConfig = z.object({
   logLevel: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
 
   /** Maximum concurrent jobs */
-  maxConcurrency: z.number().int().min(1).max(64).default(4),
+  maxConcurrency: z.number().int().min(1).max(64).default(1),
 });
 
 export type HcoConfig = z.infer<typeof HcoConfig>;

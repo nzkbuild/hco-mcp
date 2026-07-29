@@ -1,6 +1,48 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createWriteStream, mkdirSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { resolve, isAbsolute } from 'node:path';
+
+// ─── Missing-binary diagnostics ─────────────────────────────────────────────────
+
+export class MissingClaudeError extends Error {
+  public readonly binary: string;
+  public readonly diagnostic: string;
+
+  constructor(binary: string) {
+    const diagnostic =
+      isAbsolute(binary) || binary.includes('/') || binary.includes('\\')
+        ? `Check that the binary exists and is executable.`
+        : `Install Claude Code (https://docs.anthropic.com/en/docs/claude-code) ` +
+          `or set CLAUDE_BIN to the correct path.`;
+
+    super(`Claude Code executable not found: "${binary}". ${diagnostic}`);
+    this.name = 'MissingClaudeError';
+    this.binary = binary;
+    this.diagnostic = diagnostic;
+  }
+}
+
+// ─── Binary verification ────────────────────────────────────────────────────────
+
+function verifyBinaryExists(command: string): void {
+  if (command.length === 0) {
+    throw new Error('command must be non-empty');
+  }
+  try {
+    spawn(command, ['--version'], {
+      stdio: 'ignore',
+      timeout: 3000,
+    }).on('error', (err) => {
+      throw err;
+    });
+  } catch (err: unknown) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT') {
+      throw new MissingClaudeError(command);
+    }
+    throw err;
+  }
+}
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -61,6 +103,8 @@ export class SpawnRunner implements ProcessRunner {
     if (command.length === 0) {
       throw new Error('command must be non-empty');
     }
+
+    verifyBinaryExists(command);
 
     const sessionDir = resolve(opts.outputDir, opts.sessionId);
     mkdirSync(sessionDir, { recursive: true });

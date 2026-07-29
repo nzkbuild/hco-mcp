@@ -7,7 +7,7 @@ describe('HcoConfig schema', () => {
     const cfg = HcoConfig.parse({});
     assert.equal(cfg.transport, 'stdio');
     assert.equal(cfg.logLevel, 'info');
-    assert.equal(cfg.maxConcurrency, 4);
+    assert.equal(cfg.maxConcurrency, 1);
     assert.equal(cfg.allowlist.length, 0);
     assert.equal(cfg.authority.mode, 'interactive');
   });

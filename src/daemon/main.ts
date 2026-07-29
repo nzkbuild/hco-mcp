@@ -1,7 +1,9 @@
+#!/usr/bin/env node
 import { connect } from 'node:net';
 import type { AppContext } from '../core/context.js';
 import type { JobRow } from '../jobs/service.js';
 import { JobWorker } from '../jobs/worker.js';
+import { VERSION } from '../core/version.js';
 
 // ─── Socket path normalization ──────────────────────────────────────────────────
 
@@ -140,7 +142,7 @@ function printBanner(ctx: AppContext): void {
     ctx.db.prepare('SELECT COUNT(*) AS count FROM jobs').get() as { count: number }
   ).count;
 
-  console.log(`HCO daemon 2.0.0 — operational`);
+  console.log(`HCO daemon ${VERSION} — operational`);
   console.log(`  Data dir:     ${ctx.config.dataDir}`);
   console.log(`  Transport:    ${ctx.config.transport}`);
   console.log(`  Concurrency:  ${String(ctx.config.maxConcurrency)}`);

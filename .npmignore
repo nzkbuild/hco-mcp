@@ -1,0 +1,23 @@
+# Dev artifacts — keep the tarball clean
+.akar/
+.claude/
+
+# Source (not needed at runtime, dist/ is compiled)
+src/
+tests/
+
+# Dev tooling configs
+.prettierrc
+.gitignore
+.npmignore
+
+# Git metadata
+.git/
+.gitmodules
+
+# Test and dev artifacts
+*.test.ts
+*.test.js
+test/
+tests/
+coverage/

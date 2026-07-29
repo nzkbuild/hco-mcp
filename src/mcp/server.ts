@@ -6,6 +6,7 @@ import type { AppContext } from '../core/context.js';
 import { openDb } from '../state/db.js';
 import { loadConfig } from '../config/schema.js';
 import type { HcoConfig } from '../config/schema.js';
+import { VERSION } from '../core/version.js';
 import type Database from 'better-sqlite3';
 import type { ClaudeLauncher } from '../claude/launcher.js';
 import {
@@ -1451,7 +1452,7 @@ export function createMcpServer(
 ): Promise<McpServer> {
   createServerState(opts);
   const server = new McpServer(
-    { name: 'hco-mcp', version: '2.1.0' },
+    { name: 'hco-mcp', version: VERSION },
     { capabilities: { tools: {} } },
   );
   registerAllTools(server);

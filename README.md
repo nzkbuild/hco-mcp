@@ -5,7 +5,7 @@
   </picture>
 </p>
 
-<h1 align="center">Hermes Code Operator</h1>
+<h1 align="center">Hermes Claude Operator</h1>
 
 <p align="center">
   <strong>Give your AI agent a memory. And a seatbelt.</strong>
@@ -54,16 +54,69 @@ Hermes              HCO                       Claude Code
 
 **One-off tasks without the overhead.** Need Claude to lint a file or explain some code? HCO handles lightweight jobs without setting up a full multi-turn session. Submit, start, collect the result, move on.
 
-## Install for Hermes
+## Setup
 
-Drop this into your Hermes agent config. That's it.
+### 1. Install HCO
+
+```bash
+npm install -g hco-mcp
+```
+
+### 2. Verify the installation
+
+```bash
+hco --help
+hco status
+```
+
+HCO starts with a safe default: empty allowlist (no repos permitted) and concurrency set to 1. You must explicitly configure repositories before any real Claude jobs can run.
+
+### 3. Configure allowlisted repositories
+
+Create `~/.hco/config.json`:
+
+```json
+{
+  "allowlist": [
+    { "owner": "your-org", "repo": "your-project", "trustLevel": "sandbox" }
+  ]
+}
+```
+
+Only repositories in the allowlist can receive Claude Code sessions.
+
+### 4. Install Claude Code
+
+HCO spawns `claude` as a child process. Install Claude Code separately:
+
+https://docs.anthropic.com/en/docs/claude-code
+
+Confirm it is on your PATH:
+
+```bash
+claude --version
+```
+
+### 5. Validate with a fake job
+
+```bash
+hco status
+hco jobs
+hco recover
+```
+
+These work without Claude Code and confirm HCO is operational.
+
+### 6. Connect to Hermes
+
+Once HCO, Claude Code, and an allowlisted repository are confirmed working, add HCO to your Hermes MCP config:
 
 ```json
 {
   "mcpServers": {
     "hco": {
-      "command": "npx",
-      "args": ["-y", "hco-mcp"],
+      "command": "hco",
+      "args": [],
       "env": {
         "HCO_DATA_DIR": "/var/lib/hco",
         "ANTHROPIC_API_KEY": "${ANTHROPIC_API_KEY}"
@@ -73,15 +126,7 @@ Drop this into your Hermes agent config. That's it.
 }
 ```
 
-HCO starts when Hermes starts. No daemon. No ports. Just MCP.
-
-### Install globally (optional)
-
-```bash
-npm install -g hco-mcp
-```
-
-Then use `hco` directly in your config instead of `npx -y hco-mcp`.
+The `ANTHROPIC_API_KEY` is used by Claude Code — HCO passes it through to the Claude process. HCO does not require separate Hermes, OpenRouter, or Telegram credentials.
 
 ## Features
 
