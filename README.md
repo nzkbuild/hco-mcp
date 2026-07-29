@@ -8,53 +8,88 @@
 <h1 align="center">Hermes Claude Operator</h1>
 
 <p align="center">
-  <strong>Give your AI agent a memory. And a seatbelt.</strong>
+  <strong>Give Hermes a reliable way to operate Claude Code.</strong>
+</p>
+
+<p align="center">
+  Durable jobs, controlled repositories, recoverable execution, and fewer mysterious “it was working a minute ago” moments.
 </p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/hco-mcp"><img alt="npm" src="https://img.shields.io/npm/v/hco-mcp?color=6366f1&label=npm"></a>
   <a href="https://nodejs.org"><img alt="Node" src="https://img.shields.io/badge/node-%3E%3D22.0.0-6da13f?logo=node.js&logoColor=white"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-5c6ac4"></a>
-  <a href="https://github.com/nzkbuild/hco-mcp/actions"><img alt="Build" src="https://img.shields.io/badge/build-passing-22c55e"></a>
+  <a href="https://github.com/nzkbuild/hco-mcp/actions"><img alt="Build" src="https://img.shields.io/github/actions/workflow/status/nzkbuild/hco-mcp/ci.yml?branch=main&label=build"></a>
 </p>
 
-## The problem
+## What is HCO?
 
-You have Hermes, an AI agent that plans work. You have Claude Code, an AI that writes code. When Hermes tells Claude what to build, a lot can go wrong. The session crashes. The prompt gets lost. The output vanishes. You burn API credits retrying the same thing. Halfway through a refactor, nobody knows what happened or why.
+HCO is the execution layer between **Hermes Agent** and **Claude Code**.
 
-**Hermes thinks. Claude codes. HCO makes sure the whole thing doesn't fall apart in between.**
+Hermes decides what should be done. Claude Code edits the repository. HCO keeps the handoff controlled, recorded, and recoverable.
 
-## How it actually works (the short version)
+Without that middle layer, an automated coding workflow is mostly a collection of shell commands, scattered output, and optimism. HCO turns it into a durable job with state, artifacts, limits, and a clear result.
 
-Hermes needs Claude Code to build something. Instead of talking to Claude directly, Hermes hands the job to HCO. HCO writes it down, fires up Claude Code, watches it work, catches every file it produces, and hands everything back to Hermes in a neat package. If anything breaks, HCO knows exactly what happened and can pick up where it left off.
-
+```text
+Hermes Agent
+    │
+    │ submits and manages work through MCP
+    ▼
+HCO
+    │
+    ├── validates the target repository
+    ├── records execution state in SQLite
+    ├── starts and supervises Claude Code
+    ├── stores output and generated artifacts
+    └── exposes status, recovery, and diagnostics
+    │
+    ▼
+Claude Code
 ```
-Hermes              HCO                       Claude Code
-  │                  │                            │
-  ├─ "build X" ─────►│                            │
-  │                  ├─ logs it                   │
-  │                  ├─ spawns claude ───────────►│
-  │                  │                            ├─ coding away
-  │                  │◄── files + output ─────────┤
-  │                  │                            │
-  │◄── "done, here" ─┤                            │
-  │                  │                            │
-  │ "also, gimme     │                            │
-  │  the .ts file" ──►│                            │
-  │◄── file ─────────┤                            │
-```
 
-## Why this matters
+**Hermes thinks. Claude codes. HCO keeps the operation from becoming archaeology.**
 
-**Separate your bills.** Hermes runs on one API key (yours, or whichever provider you want). Claude Code runs on a different API key. HCO sits in the middle, so a $40 coding session never eats into your Hermes budget. Swap either side independently.
+## Why use it?
 
-**Crash proof.** You just burned 15 minutes of Claude Code output. Without HCO, that work is gone. With HCO, the execution and its artifacts are sitting in SQLite. Hermes asks "what happened?" and gets the full answer.
+### Jobs survive the chat
 
-**You can actually see what's happening.** 15 built-in health checks. Execution statistics with success rates. Queue depth. Timeline views. When Hermes says "I'm working on it," you can verify that claim.
+Executions are stored in SQLite instead of existing only inside one agent conversation. A restart does not have to mean “start over and hope it remembers.”
 
-**One-off tasks without the overhead.** Need Claude to lint a file or explain some code? HCO handles lightweight jobs without setting up a full multi-turn session. Submit, start, collect the result, move on.
+### Repository access is explicit
 
-## Setup
+HCO starts with an empty repository allowlist. Claude Code cannot be sent into an arbitrary project until you approve it.
+
+### Hermes and Claude Code stay separate
+
+Hermes can use one provider while Claude Code uses another. Their credentials, models, and costs do not need to be tangled together.
+
+### You can inspect what actually happened
+
+HCO exposes job state, timelines, results, artifacts, health checks, queue information, and recovery tools. “The agent is working on it” becomes something you can verify.
+
+### Small jobs do not need a ceremony
+
+Submit a focused task, run it, collect the result, and move on. HCO supports lightweight work as well as longer, resumable execution.
+
+## Who is this for?
+
+HCO is useful when you:
+
+- run Hermes Agent and want it to delegate coding work to Claude Code;
+- want automated coding jobs to survive restarts and failed sessions;
+- need strict control over which repositories an agent may touch;
+- want provider and credential boundaries instead of one giant environment file;
+- prefer evidence, logs, and artifacts over “trust me, it ran.”
+
+HCO is probably unnecessary if you only open Claude Code manually for occasional one-off edits. It is an operator layer, not a prettier shell alias.
+
+## Quick start
+
+### Requirements
+
+- Node.js 22 or newer
+- Claude Code installed separately for real coding jobs
+- A repository you are willing to explicitly allow
 
 ### 1. Install HCO
 
@@ -62,42 +97,53 @@ Hermes              HCO                       Claude Code
 npm install -g hco-mcp
 ```
 
-### 2. Verify the installation
+Check the installation:
 
 ```bash
+hco --version
 hco --help
 hco status
 ```
 
-HCO starts with a safe default: empty allowlist (no repos permitted) and concurrency set to 1. You must explicitly configure repositories before any real Claude jobs can run.
+A fresh installation is intentionally cautious:
 
-### 3. Configure allowlisted repositories
+- repository allowlist: empty;
+- execution concurrency: 1;
+- real Claude Code jobs: disabled until you configure them.
+
+This is not HCO being shy. It is HCO refusing to improvise with your repositories.
+
+### 2. Allow a repository
 
 Create `~/.hco/config.json`:
 
 ```json
 {
   "allowlist": [
-    { "owner": "your-org", "repo": "your-project", "trustLevel": "sandbox" }
+    {
+      "owner": "your-org",
+      "repo": "your-project",
+      "trustLevel": "sandbox"
+    }
   ]
 }
 ```
 
-Only repositories in the allowlist can receive Claude Code sessions.
+Only repositories listed here may receive Claude Code sessions.
 
-### 4. Install Claude Code
+### 3. Install Claude Code
 
-HCO spawns `claude` as a child process. Install Claude Code separately:
+HCO starts the `claude` executable as a child process. Claude Code is not bundled with HCO and is never installed silently.
 
-https://docs.anthropic.com/en/docs/claude-code
-
-Confirm it is on your PATH:
+Follow the official Claude Code installation instructions, then confirm:
 
 ```bash
 claude --version
 ```
 
-### 5. Validate with a fake job
+### 4. Check HCO before spending tokens
+
+These commands do not require a provider call:
 
 ```bash
 hco status
@@ -105,11 +151,11 @@ hco jobs
 hco recover
 ```
 
-These work without Claude Code and confirm HCO is operational.
+They confirm that HCO can open its data directory, create the SQLite database, and inspect durable state.
 
-### 6. Connect to Hermes
+### 5. Connect HCO to Hermes
 
-Once HCO, Claude Code, and an allowlisted repository are confirmed working, add HCO to your Hermes MCP config:
+After HCO, Claude Code, and the repository allowlist are working independently, add HCO as an MCP server in Hermes:
 
 ```json
 {
@@ -126,89 +172,143 @@ Once HCO, Claude Code, and an allowlisted repository are confirmed working, add 
 }
 ```
 
-The `ANTHROPIC_API_KEY` is used by Claude Code — HCO passes it through to the Claude process. HCO does not require separate Hermes, OpenRouter, or Telegram credentials.
+`ANTHROPIC_API_KEY` belongs to the Claude Code execution path when that provider requires it. HCO does not need your Hermes, Telegram, OpenRouter, or unrelated provider credentials.
 
-## Features
+A sensible first run is one allowlisted repository, one job, and concurrency set to 1. Confirm the complete path before turning every dial to maximum. Your API provider will appreciate the restraint, even if it never sends flowers.
+
+## What HCO manages
 
 ### Durable execution
 
-Eight tools. One state machine. Submit work, start it, wait for results, cancel mid-run, continue where you left off, and pull artifacts by ID. Executions move through `accepted > queued > running > completed`. Failed? Cancelled? Timed out? Every state has a recovery path. Need human input mid-session? `awaiting_input` pauses cleanly and resumes when you're ready.
+HCO records each execution through a defined state machine. Work can be submitted, started, inspected, waited on, cancelled, continued, and recovered.
 
-### Provider management
+Typical states include:
 
-Run Hermes on OpenAI. Run Claude Code on Anthropic. Or the other way around. Register any number of providers, validate credentials, auto-discover available models, and map them to HCO roles (sonnet, opus, haiku, fable, subagent). Each provider tracks its own lifecycle: `registered > validated > active > failed`. Every state transition is audited in an append-only event log.
-
-```
-Register > Validate > Discover models > Recommend mappings > Activate
+```text
+accepted → queued → running → completed
 ```
 
-Anthropic ships ready. OpenAI and custom provider adapters are stubbed and waiting for your implementation.
+Failures, timeouts, cancellations, and requests for human input remain explicit states rather than disappearing into terminal history.
+
+### Artifacts and results
+
+Files and output produced during an execution can be stored and retrieved by ID. Size limits prevent one runaway job from quietly eating the machine.
+
+Current limits include:
+
+- 64 KiB inline content;
+- 256 KiB per event chunk;
+- 10 MiB per artifact;
+- 100 MiB total artifacts per execution.
+
+When a limit is reached, HCO reports which limit was exceeded.
 
 ### Workspaces
 
-Each repository gets its own workspace, tied to a specific provider. Two concurrent sessions on the same repo with different providers? No collision. Call resume twice? You get the same workspace back. Workspaces track when they were last touched, who owns the repo, and which provider is active.
+Repository workspaces are isolated by repository and provider context. Resume operations are idempotent, and concurrent sessions do not need to share one accidental working directory.
+
+### Provider lifecycle
+
+HCO includes provider registration, validation, model discovery, mapping recommendations, activation, status, and rollback flows.
+
+```text
+register → validate → discover models → recommend mappings → activate
+```
+
+Anthropic support is available. OpenAI and custom provider adapters remain extension points and should not be treated as complete production integrations yet.
 
 ### Health and observability
 
-`hco_doctor` runs 15 checks in parallel: Node version, Claude binary, SQLite integrity, disk space, provider connectivity, auth status, model discovery, tool support, streaming, MCP protocol, repo permissions, execution adapter, queue health, environment config, and acceptance readiness. Each check returns `healthy`, `degraded`, or `unhealthy` with a readable explanation. `hco_statistics` gives you the dashboard: total executions, success rate, queue depth, timeline breakdown.
+`hco_doctor` checks the execution environment, including Node.js, Claude Code availability, SQLite integrity, disk space, authentication, provider connectivity, repository permissions, queue state, MCP behaviour, and acceptance readiness.
 
-### Artifact storage
+`hco_statistics` reports operational information such as execution totals, success rate, queue depth, and timeline breakdowns.
 
-Every file Claude Code produces gets stored as an artifact. Retrieve anything by ID. Limits keep things sane: 64 KiB inline, 256 KiB per event chunk, 10 MiB per artifact, 100 MiB cap per execution. If you hit a limit, HCO tells you exactly which one.
+## MCP tools
 
-### Legacy compatibility
+HCO exposes 31 MCP tools. Every tool is prefixed with `hco_` to avoid collisions with other servers.
 
-The v1 session tools still work. They log a deprecation warning to stderr and delegate to the v2 engine internally. No breaking changes.
+| Area | Tools |
+|---|---|
+| Execution | `submit`, `start`, `status`, `wait`, `cancel`, `result`, `artifact`, `continue` |
+| Providers | `register`, `validate`, `models`, `mapping_recommend`, `activate`, `status`, `list`, `rollback` |
+| Workspaces | `resume`, `list`, `status` |
+| Operations | `health`, `compatibility`, `statistics`, `doctor`, `status`, `list_jobs`, `inspect_job`, `list_milestones` |
+| Legacy | `session_start`, `session_list`, `session_status`, `session_wait`, `session_stop`, `session_archive`, `task_start` |
 
-## All 31 tools
+The v1 session tools remain available for compatibility. They emit a deprecation warning and delegate to the current execution engine.
 
-**Execution (v2):** `submit`, `start`, `status`, `wait`, `cancel`, `result`, `artifact`, `continue`
+## Security model
 
-**Providers:** `register`, `validate`, `models`, `mapping_recommend`, `activate`, `status`, `list`, `rollback`
+HCO is designed around a few deliberately boring rules:
 
-**Workspaces:** `resume`, `list`, `status`
+- no repository access without an allowlist entry;
+- no automatic Claude Code installation;
+- no requirement to share Hermes credentials with the coding runtime;
+- no silent increase in execution concurrency;
+- durable state and append-only audit events for important transitions;
+- bounded artifact storage;
+- errors should explain the failure without printing secrets.
 
-**Operations:** `health`, `compatibility`, `statistics`, `doctor`, `status`, `list_jobs`, `inspect_job`, `list_milestones`
+Boring security is good security. Exciting security usually means somebody is writing an incident report.
 
-**Legacy:** `session_start`, `session_list`, `session_status`, `session_wait`, `session_stop`, `session_archive`, `task_start`
+## CLI
 
-All prefixed with `hco_` so they never collide with your other MCP tools.
+Common commands:
 
-## Developing
+```bash
+hco --help
+hco --version
+hco status
+hco jobs
+hco recover
+hco-daemon --help
+```
+
+Use `hco status` as the first diagnostic. Use the doctor and MCP tools for deeper inspection once the server is connected.
+
+## Development
 
 ```bash
 git clone https://github.com/nzkbuild/hco-mcp.git
 cd hco-mcp
 npm install
 npm run build
+npm run lint
+npm run format:check
 npm test
 ```
 
-| Requirement | Why |
-|---|---|
-| Node.js >= 22 | ESM, built-in test runner, SQLite bindings |
-| `claude` on PATH | Spawn adapter and acceptance tests need it |
+### Environment variables
 
 | Variable | Default | Purpose |
-|---|---|---|
-| `HCO_DATA_DIR` | `./data` | Where the SQLite database lives |
-| `ANTHROPIC_API_KEY` | -- | For Anthropic provider validation |
-| `HCO_ACCEPTANCE` | `0` | `1` to enable acceptance tests |
-| `HCO_ADAPTER` | `fake` | `spawn` for real Claude Code, `fake` for tests |
+|---|---:|---|
+| `HCO_DATA_DIR` | `./data` | SQLite database and durable HCO state |
+| `ANTHROPIC_API_KEY` | none | Anthropic provider validation or Claude execution environment |
+| `HCO_ACCEPTANCE` | `0` | Set to `1` to enable real Claude Code acceptance tests |
+| `HCO_ADAPTER` | `fake` | Use `spawn` for real Claude Code or `fake` for tests |
 
-```
+### Project layout
+
+```text
 src/
   contract/     Zod schemas and interfaces
   state/        SQLite migrations and repositories
-  provider/     Adapter pattern for LLM providers
-  workspace/    Workspace isolation service
-  execution/    Core execution engine
-  statistics/   Aggregated operational metrics
-  doctor/       Systematic health check framework
-  mcp/          MCP server, tool handlers, transport
+  provider/     LLM provider adapters and lifecycle
+  workspace/    Repository workspace isolation
+  execution/    Durable execution engine
+  statistics/   Operational metrics
+  doctor/       Environment and readiness checks
+  mcp/          MCP server, handlers, and transport
+
 tests/
   acceptance/   Real Claude Code integration tests
 ```
+
+## Status
+
+HCO is actively developed. Read the current release notes and CLI output before relying on unfinished provider adapters or undocumented behaviour.
+
+Bug reports and focused pull requests are welcome. Reproduction steps are even more welcome. “It broke” is emotionally valid, but logs travel better.
 
 ## License
 
